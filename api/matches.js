@@ -1,5 +1,4 @@
 // api/matches.js — Vercel serverless function
-// Proxies football-data.org so the API key stays server-side
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
@@ -9,18 +8,15 @@ export default async function handler(req, res) {
   const { endpoint = "matches" } = req.query;
 
   const urls = {
-    matches: "https://api.football-data.org/v4/competitions/WC/matches",
+    matches:   "https://api.football-data.org/v4/competitions/WC/matches",
     standings: "https://api.football-data.org/v4/competitions/WC/standings",
   };
 
-  const url = urls[endpoint] || urls.matches;
-
   try {
-    const r = await fetch(url, { headers: { "X-Auth-Token": key } });
-    if (!r.ok) {
-      const err = await r.text();
-      return res.status(r.status).json({ error: err });
-    }
+    const r = await fetch(urls[endpoint] || urls.matches, {
+      headers: { "X-Auth-Token": key },
+    });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
     const data = await r.json();
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
     return res.status(200).json(data);
