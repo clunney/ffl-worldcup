@@ -1400,14 +1400,6 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
   const rootingFor=computeRooting(myBracket,allBrackets);
   const n=allBrackets.length;
 
-  if(!picksVisible) return(
-    <div style={{padding:24,textAlign:"center",paddingBottom:90}}>
-      <div style={{fontSize:44,marginBottom:16}}>🔒</div>
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.accent,marginBottom:10,letterSpacing:1}}>INSIGHTS UNLOCK AT KICKOFF</div>
-      <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:14,lineHeight:1.6,maxWidth:320,margin:"0 auto"}}>Pool stats and analysis become available when picks lock on June 11.</p>
-    </div>
-  );
-
   const today=new Date().toDateString();
   const todayKnockout=matches.filter(m=>{
     const isToday=new Date(m.utcDate).toDateString()===today;
@@ -1415,10 +1407,9 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
     return isToday&&isKO&&["SCHEDULED","TIMED","IN_PLAY","PAUSED"].includes(m.status);
   });
 
-  // What-if simulator
+  // What-if simulator — must be before any early return
   const whatIfScores=useMemo(()=>{
     if(!whatIfTeam) return null;
-    // Simulate: what if this team wins the tournament
     const simulatedResults={
       ...(results||{}),
       knockout_results:{...(results?.knockout_results||{}),champion:{code:whatIfTeam.code,name:whatIfTeam.name}},
@@ -1429,6 +1420,21 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
       wouldWin:b.knockout_picks?.champion?.code===whatIfTeam.code,
     })).sort((a,b)=>b.score-a.score);
   },[whatIfTeam,allBrackets,results,scoring]);
+
+  if(!picksVisible) return(
+    <div style={{padding:24,textAlign:"center",paddingBottom:90}}>
+      <div style={{fontSize:44,marginBottom:16}}>🔒</div>
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.accent,marginBottom:10,letterSpacing:1}}>INSIGHTS UNLOCK AT KICKOFF</div>
+      <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:14,lineHeight:1.6,maxWidth:320,margin:"0 auto"}}>Pool stats and analysis become available when picks lock on June 11.</p>
+    </div>
+  );
+
+  const today=new Date().toDateString();
+  const todayKnockoutFiltered=matches.filter(m=>{
+    const isToday=new Date(m.utcDate).toDateString()===today;
+    const isKO=["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS"].includes(m.stage);
+    return isToday&&isKO&&["SCHEDULED","TIMED","IN_PLAY","PAUSED"].includes(m.status);
+  });
 
   return(
     <div style={{padding:12,paddingBottom:90}}>
@@ -1441,8 +1447,8 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
       {tab==="edge"&&(
         <div>
           <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginBottom:12,lineHeight:1.5}}>How today's knockout results would shift the standings.</p>
-          {todayKnockout.length===0&&<Card><div style={{textAlign:"center",padding:20}}><div style={{fontSize:36,marginBottom:10}}>⚽</div><p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13}}>No knockout matches today. Check back during the knockout rounds.</p></div></Card>}
-          {todayKnockout.map(m=>{
+          {todayKnockoutFiltered.length===0&&<Card><div style={{textAlign:"center",padding:20}}><div style={{fontSize:36,marginBottom:10}}>⚽</div><p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13}}>No knockout matches today. Check back during the knockout rounds.</p></div></Card>}
+          {todayKnockoutFiltered.map(m=>{
             const edges=computeMatchEdge(m,allBrackets,results,scoring);
             if(!edges) return null;
             const hCode=NAME_TO_CODE[m.homeTeam?.name]||"";
