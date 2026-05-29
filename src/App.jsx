@@ -146,35 +146,6 @@ const buildR32=(groupPicks,wildcardPicks)=>{
   ];
 };
 
-function getEliminatedCodes(results){
-  const eliminated=new Set();
-  const koR=results?.knockout_results||{};
-  ["r32","r16","qf","sf"].forEach(round=>{
-    const roundResults=koR[round]||{};
-    // For each played match, the loser is eliminated
-    Object.values(roundResults).forEach(winner=>{if(winner?.code) eliminated.add("__placeholder__");});
-  });
-  // Build set of winners at each stage
-  const allWinners=new Set();
-  ["r32","r16","qf","sf"].forEach(round=>{
-    Object.values(koR[round]||{}).forEach(t=>{if(t?.code) allWinners.add(t.code);});
-  });
-  if(koR.champion?.code) allWinners.add(koR.champion.code);
-  // Teams that appeared in knockout but didn't win any match they played
-  const allPlayed=new Set();
-  ["r32","r16","qf","sf"].forEach(round=>{
-    const actualMatches=koR[round]||{};
-    const prevRound=ROUNDS[ROUNDS.findIndex(r=>r.id===round)-1];
-    // All teams that played in this round = winners of previous round + r32 starters
-    Object.values(actualMatches).forEach(winner=>{
-      // winner advanced, loser eliminated — but we don't track losers explicitly
-      // so just mark teams that never appear as winners in any later round
-      if(winner?.code) allPlayed.add(winner.code);
-    });
-  });
-  return eliminated;
-}
-
 function getTeamsAlive(bracket,results){
   const koR=results?.knockout_results||{};
   const ko=bracket?.knockout_picks||{};
@@ -191,9 +162,7 @@ function getTeamsAlive(bracket,results){
   let alive=0;
   pickedCodes.forEach(code=>{
     // Find the furthest stage this team has been picked
-    let furthestPicked="r16";
-    ["r16","qf","sf"].forEach(r=>{if(Object.values(ko[r]||{}).some(t=>t?.code===code)) furthestPicked=r;});
-    if(ko.champion?.code===code) furthestPicked="champion";
+    
     // Is this team still in the actual tournament?
     const isActuallyEliminated=["r32","r16","qf","sf"].some(r=>{
       const actuals=Object.values(koR[r]||{});
@@ -319,7 +288,7 @@ const toETTime=(utcStr)=>{
   if(!utcStr) return "";
   return new Date(utcStr).toLocaleString("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"2-digit",hour12:true});
 };
-const msUntil=(utcStr)=>new Date(utcStr)-new Date();
+
 
 // ── Login ─────────────────────────────────────────────────────
 function LoginScreen({joinPool}){
@@ -398,6 +367,7 @@ function DynamicHero({matches,locked,currentPool,displayName,bracketComplete,bra
   const[timeLeft,setTimeLeft]=useState({});
   const[nextMatchTime,setNextMatchTime]=useState(null);
   const[liveMatch,setLiveMatch]=useState(null);
+  const firstName=displayName?.split(" ")[0]||"there";
 
   useEffect(()=>{
     const live=matches.find(m=>["IN_PLAY","PAUSED","HALFTIME"].includes(m.status));
@@ -418,7 +388,6 @@ function DynamicHero({matches,locked,currentPool,displayName,bracketComplete,bra
   },[locked,nextMatchTime]);
 
   const td=v=>String(v??0).padStart(2,"0");
-  const firstName=displayName?.split(" ")[0]||"there";
 
   const renderCountdown=()=>{
     // Live match
@@ -1193,7 +1162,6 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,allBrac
 
   const myEntry=scored.find(b=>b.user_id===userId);
   const myPos=myEntry?scored.indexOf(myEntry)+1:null;
-  const firstName=displayName?.split(" ")[0]||"there";
 
   const shareMyBracket=()=>{
     const url=`${window.location.origin}?viewbracket=${userId}`;
