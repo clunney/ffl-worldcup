@@ -168,7 +168,7 @@ function computeStats(allBrackets) {
 // ── Who to root for ──────────────────────────────────────────
 function computeRooting(myBracket, allBrackets, results) {
   if (!myBracket || !allBrackets.length || !results) return [];
-  const myScore = calculateScore(myBracket, results).total;
+  
   // For each team still in tournament, estimate how much I gain vs. the field
   // Simplified: list teams in my knockout picks that most others don't have
   const remaining = [];
