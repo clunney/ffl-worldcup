@@ -454,8 +454,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,locked,onNext,o
         {thirds.map(({group,team})=>{
           const sel=wildcardPicks.includes(team.code);
           const disabled=!sel&&wildcardPicks.length>=8;
-          const correct=hasResults&&actualWC.includes(team.code);
-          const wrong=hasResults&&!actualWC.includes(team.code);
+          const correct=hasActual&&actualWC.includes(team.code);
           return (
             <button key={team.code} onClick={()=>toggle(team.code)} disabled={disabled||locked}
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:sel?"rgba(6,182,212,0.13)":C.card,border:`1.5px solid ${sel?C.accent:C.border}`,borderRadius:10,cursor:disabled||locked?"not-allowed":"pointer",opacity:disabled?0.38:1,textAlign:"left",transition:"all .15s"}}>
