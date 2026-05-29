@@ -838,6 +838,7 @@ function InsightsPage({allBrackets,userId,results,picksVisible}) {
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   
   const {champDist,groupConsensus,contrarian}=computeStats(allBrackets);
+  const myBracket=allBrackets.find(b=>b.user_id===userId);
   const rootingFor=computeRooting(myBracket,allBrackets);
   const n=allBrackets.length;
 
