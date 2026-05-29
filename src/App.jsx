@@ -1429,13 +1429,6 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
     </div>
   );
 
-  const today=new Date().toDateString();
-  const todayKnockoutFiltered=matches.filter(m=>{
-    const isToday=new Date(m.utcDate).toDateString()===today;
-    const isKO=["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS"].includes(m.stage);
-    return isToday&&isKO&&["SCHEDULED","TIMED","IN_PLAY","PAUSED"].includes(m.status);
-  });
-
   return(
     <div style={{padding:12,paddingBottom:90}}>
       <div style={{display:"flex",gap:4,marginBottom:14,overflowX:"auto"}}>
