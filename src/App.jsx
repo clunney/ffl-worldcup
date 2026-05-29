@@ -83,7 +83,7 @@ const inp = {
 };
 
 // ── Inline SVG nav icons ──────────────────────────────────────
-const Ico = ({d,size=22,color="currentColor",vb="0 0 24 24",fill="none",sw=1.7}) => (
+
   <svg width={size} height={size} viewBox={vb} fill={fill} stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
     {d.map((p,i) => p.startsWith("C") ? <circle key={i} cx={p.split(",")[1]} cy={p.split(",")[2]} r={p.split(",")[3]} fill={fill!=="none"?color:"none"}/> : <path key={i} d={p}/>)}
   </svg>
@@ -645,7 +645,7 @@ function LeaderboardPage({userId,bracketComplete,allBrackets,results,locked,pick
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const scored=allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total})).sort((a,b)=>b.score-a.score);
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
-  const myBracket=allBrackets.find(b=>b.user_id===userId);
+  
 
   return (
     <div style={{padding:12,paddingBottom:90}}>
@@ -842,7 +842,7 @@ function InsightsPage({allBrackets,userId,results,picksVisible}) {
   },[]);
 
   const scoring=results?.scoring_config||DEFAULT_SCORING;
-  const myBracket=allBrackets.find(b=>b.user_id===userId);
+  
   const {champDist,groupConsensus,contrarian}=computeStats(allBrackets);
   const rootingFor=computeRooting(myBracket,allBrackets);
   const n=allBrackets.length;
