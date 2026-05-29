@@ -82,12 +82,6 @@ const inp = {
   marginBottom:10,boxSizing:"border-box",outline:"none",
 };
 
-// ── Inline SVG nav icons ──────────────────────────────────────
-
-  <svg width={size} height={size} viewBox={vb} fill={fill} stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-    {d.map((p,i) => p.startsWith("C") ? <circle key={i} cx={p.split(",")[1]} cy={p.split(",")[2]} r={p.split(",")[3]} fill={fill!=="none"?color:"none"}/> : <path key={i} d={p}/>)}
-  </svg>
-);
 
 const IcoTrophy = ({s=22,c="currentColor"}) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
