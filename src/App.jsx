@@ -53,9 +53,7 @@ const ROUNDS = [
   {id:"sf", label:"SF", fullLabel:"Semifinals",  n:2,pts:13},
 ];
 
-const STAGE_TO_ROUND = {
-  LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final",
-};
+
 
 // ── Colors ────────────────────────────────────────────────────
 const C = {
@@ -375,7 +373,6 @@ function GroupCard({groupId,teams,onReorder,locked,actualGroup}) {
         const isOver=dragOver===i&&dragIdx.current!==null&&dragIdx.current!==i;
         const actualPos=hasLive?actualGroup.findIndex(t=>t.code===team.code):-1;
         const correct=hasLive&&actualPos===i;
-        const wrong=hasLive&&actualPos!==-1&&actualPos!==i;
         const actualTeam=hasLive?actualGroup[i]:null;
         return (
           <div key={team.code} draggable={!locked&&!hasLive}
@@ -444,12 +441,12 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,locked,onNext,o
     setWildcardPicks(prev=>prev.includes(code)?prev.filter(c=>c!==code):prev.length<8?[...prev,code]:prev);
   };
   const remaining=8-wildcardPicks.length;
-  const hasResults=actualWC.length>0;
+  const hasActual=actualWC.length>0;
   return (
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:`1px solid ${C.borderAccent}`}}>
         <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams that advance. +2 pts each correct."/>
-        {!hasResults&&<span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
+        {!hasActual&&<span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
           {wildcardPicks.length}/8{remaining>0?` — pick ${remaining} more`:" — complete!"}
         </span>}
       </div>
@@ -462,16 +459,16 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,locked,onNext,o
           return (
             <button key={team.code} onClick={()=>toggle(team.code)} disabled={disabled||locked}
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:sel?"rgba(6,182,212,0.13)":C.card,border:`1.5px solid ${sel?C.accent:C.border}`,borderRadius:10,cursor:disabled||locked?"not-allowed":"pointer",opacity:disabled?0.38:1,textAlign:"left",transition:"all .15s"}}>
-              {!hasResults&&<div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${sel?C.accent:C.muted}`,background:sel?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {!hasActual&&<div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${sel?C.accent:C.muted}`,background:sel?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 {sel&&<span style={{color:"#0a0e1a",fontSize:10,fontWeight:700}}>✓</span>}
               </div>}
-              {hasResults&&<span style={{fontSize:14,flexShrink:0}}>{correct?"✓":"✗"}</span>}
+              {hasActual&&<span style={{fontSize:14,flexShrink:0}}>{correct?"✓":"✗"}</span>}
               <Flag code={team.code} size={28}/>
               <div>
                 <div style={{color:C.text,fontSize:13,fontFamily:"'Barlow',sans-serif",fontWeight:600}}>{team.name}</div>
                 <div style={{color:C.muted,fontSize:11,fontFamily:"'Barlow',sans-serif"}}>3rd · Group {group}</div>
               </div>
-              {hasResults&&sel&&<PtsTag pts={correct?2:0} pending={false}/>}
+              {hasActual&&sel&&<PtsTag pts={correct?2:0} pending={false}/>}
             </button>
           );
         })}
@@ -638,13 +635,10 @@ function BracketViewer({bracket,results,onClose}) {
   const [tab,setTab]=useState("groups");
   if(!bracket) return null;
   const gp=bracket.group_picks||{};
-  const wp=bracket.wildcard_picks||[];
   const ko=bracket.knockout_picks||{};
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const gResults=results?.group_results||{};
   const koR=results?.knockout_results||{};
-  const wcCodes=results?.wildcard_codes||[];
-  const hasResults=Object.keys(gResults).length>0;
 
   const LEGEND = (
     <div style={{display:"flex",gap:10,padding:"8px 0",marginBottom:10,flexWrap:"wrap"}}>
@@ -702,8 +696,7 @@ function BracketViewer({bracket,results,onClose}) {
   );
 
   const KnockoutTab = () => {
-    let correct=0,wrong=0,pending=0;
-    const allRounds=[...ROUNDS,{id:"final",label:"Final",n:1}];
+    let correct=0,pending=0;
     return (
       <div>
         {LEGEND}
@@ -723,7 +716,7 @@ function BracketViewer({bracket,results,onClose}) {
                   const isPending=!act;
                   if(isPending) pending++;
                   else if(isCorrect) correct++;
-                  else wrong++;
+                  else pending++;
                   return (
                     <div key={i} style={{background:C.card2,borderRadius:7,padding:"8px 10px",display:"flex",alignItems:"center",gap:8,border:`.5px solid ${C.border}`}}>
                       <Flag code={pick.code} size={22}/>
@@ -742,8 +735,8 @@ function BracketViewer({bracket,results,onClose}) {
             </div>
           );
         })}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:10}}>
-          {[[correct,C.green,"correct"],[wrong,C.red,"wrong"],[pending,C.muted,"pending"]].map(([v,c,l])=>(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+          {[[correct,C.green,"correct"],[pending,C.muted,"pending/wrong"]].map(([v,c,l])=>(
             <div key={l} style={{background:C.card2,borderRadius:8,padding:10,textAlign:"center"}}>
               <div style={{color:c,fontSize:20,fontWeight:500}}>{v}</div>
               <div style={{color:C.muted,fontSize:10,marginTop:2}}>{l}</div>
