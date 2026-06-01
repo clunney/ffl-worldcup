@@ -6,12 +6,13 @@ const ADMIN_EMAIL = "clunney22@gmail.com";
 const RESULTS_ROW = "00000000-0000-0000-0000-000000000001";
 const KICKOFF     = new Date("2026-06-11T18:00:00Z");
 
-// FIFA Rankings (approximate current)
+// FIFA Rankings - Official April 1, 2026 release (most recent pre-tournament)
+// Source: FIFA.com / Wikipedia. Next update: June 9, 2026
 const FIFA_RANKINGS = {
-  "ar":1,"fr":2,"be":3,"br":4,"gb-eng":5,"nl":6,"pt":7,"es":8,
-  "co":10,"us":11,"de":12,"mx":13,"ma":14,"hr":15,"ch":16,"uy":17,
-  "jp":18,"sn":20,"ir":21,"au":23,"kr":24,"at":25,"no":27,"tn":30,
-  "se":31,"eg":33,"dz":35,"cz":36,"gb-sct":39,"ec":40,"ca":41,
+  "fr":1,"es":2,"ar":3,"gb-eng":4,"pt":5,"br":6,"nl":7,"ma":8,"be":9,"de":10,
+  "hr":11,"co":13,"sn":14,"mx":15,"us":16,"uy":17,"jp":18,"ch":19,
+  "ir":21,"au":23,"kr":24,"at":25,"no":27,"tn":30,"se":31,
+  "eg":33,"dz":35,"cz":36,"gb-sct":39,"ec":40,"ca":41,
   "qa":42,"tr":47,"ci":48,"pa":49,"py":52,"cd":53,"ba":55,"sa":56,
   "cv":60,"gh":63,"za":67,"iq":70,"jo":78,"uz":82,"ht":86,"cw":95,"nz":97,
 };
@@ -213,6 +214,28 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   });
   if(!koR.champion&&ko.champion&&oddsMap[ko.champion.code]) proj+=scoring.champion;
   return proj;
+}
+
+function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
+  // Current score + points still earnable from each alive pick in remaining rounds
+  const current=calculateScore(bracket,results,scoring).total;
+  const ko=bracket?.knockout_picks||{};
+  const koR=results?.knockout_results||{};
+  let extra=0;
+  // For each knockout round, add pts for picks where actual result not yet decided
+  ["r32","r16","qf","sf"].forEach(round=>{
+    const act=koR[round]||{};
+    const pred=ko[round]||{};
+    Object.entries(pred).forEach(([idx,pick])=>{
+      if(!pick) return;
+      if(act[+idx]) return; // already decided - points already in current score or lost
+      extra+=scoring[round]||0; // still earnable
+    });
+  });
+  // Tiebreaker final matches
+  if(!koR.thirdPlace&&ko.thirdPlace) extra+=scoring.third||0;
+  if(!koR.champion&&ko.champion) extra+=scoring.champion||0;
+  return current+extra;
 }
 
 function getTeamsAlive(bracket,results){
@@ -935,8 +958,9 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
   const chalkPct=useMemo(()=>calcChalkPct(knockoutPicks,r32Teams),[knockoutPicks,r32Teams]);
 
   const pointsNote=(
-    <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
-      <strong style={{color:C.accent}}>Points tip:</strong> You earn points for any correct pick in each round, even if your earlier rounds were wrong. A team that loses in round 1 in real life can still score you points here if you picked them to go deep.
+    <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"10px 14px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.65}}>
+      <strong style={{color:C.accent,display:"block",marginBottom:5}}>How your bracket scoring works</strong>
+      Your matchups come from <em>your own</em> group stage picks - not real life results. Points are earned if your chosen team wins their slot in your bracket. Each round is scored independently: being wrong in round 1 never costs you points in round 2. Example: if you picked Brazil to reach the Final, you earn Semifinal points the moment Brazil beats whoever you put them against in your SF - even if Brazil was already eliminated in real life.
     </div>
   );
 
@@ -968,16 +992,30 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
 
       {pointsNote}
 
-      {activeRound!=="final"&&(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,padding:"0 12px 12px"}}>
-          {Array.from({length:currentRound.n},(_,i)=>({idx:i,teams:getTeams(activeRound,i)})).map(({idx,teams:[t1,t2]})=>(
-            <MatchPickCard key={idx} num={idx+1} team1={t1} team2={t2}
-              winner={knockoutPicks[activeRound]?.[idx]}
-              actualWinner={koR[activeRound]?.[idx]||null}
-              onPick={team=>pickWinner(activeRound,idx,team)} locked={locked}/>
-          ))}
-        </div>
-      )}
+      {activeRound!=="final"&&(()=>{
+        const roundComplete=picked>=currentRound.n;
+        const currentRoundIdx=ROUNDS.findIndex(r=>r.id===activeRound);
+        const nextRound=ROUNDS[currentRoundIdx+1]||{id:"final",label:"Final"};
+        return(
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,padding:"0 12px 12px"}}>
+              {Array.from({length:currentRound.n},(_,i)=>({idx:i,teams:getTeams(activeRound,i)})).map(({idx,teams:[t1,t2]})=>(
+                <MatchPickCard key={idx} num={idx+1} team1={t1} team2={t2}
+                  winner={knockoutPicks[activeRound]?.[idx]}
+                  actualWinner={koR[activeRound]?.[idx]||null}
+                  onPick={team=>pickWinner(activeRound,idx,team)} locked={locked}/>
+              ))}
+            </div>
+            {!locked&&roundComplete&&(
+              <div style={{padding:"0 12px 12px"}}>
+                <button onClick={()=>changeRound(nextRound.id)} style={{...btn(true),width:"100%",fontSize:15}}>
+                  NEXT: {nextRound.label.toUpperCase()} PICKS
+                </button>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {activeRound==="final"&&(
         <div style={{padding:"0 12px 12px",display:"flex",flexDirection:"column",gap:12}}>
@@ -1602,7 +1640,7 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
   const[nameVal,setNameVal]=useState(bracketName);
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
-  const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
+  const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
   const myEntry=scored.find(b=>b.user_id===userId),myPos=myEntry?scored.indexOf(myEntry)+1:null;
   const shareMyBracket=()=>{navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
 
@@ -1635,9 +1673,10 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
             )}
           </div>
         )}
-        <div style={{display:"grid",gridTemplateColumns:globalPercentile!=null?"1fr 1fr 1fr 1fr":"1fr 1fr 1fr",gap:8,marginBottom:10}}>
-          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted?ordinal(myPos):"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>in pool</div></div>
+        <div style={{display:"grid",gridTemplateColumns:globalPercentile!=null?"1fr 1fr 1fr 1fr 1fr":"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
+          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted?ordinal(myPos):"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>rank</div></div>
           <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.score:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>pts</div></div>
+          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.maxPts:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>max</div></div>
           <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.green,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.proj:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>proj</div></div>
           {globalPercentile!=null&&<div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{globalPercentile}%</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>global</div></div>}
         </div>
@@ -1652,15 +1691,15 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>STANDINGS</div>
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{allBrackets.length} entries - {MAX_POSSIBLE} pts max</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 54px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
-          {["#","BRACKET","PTS","PROJ"].map(h=>(<span key={h} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h==="PTS"||h==="PROJ"?"right":"left"}}>{h}</span>))}
+        <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 50px 46px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
+          {["#","BRACKET","PTS","MAX","PROJ"].map(h=>(<span key={h} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h!=="BRACKET"?"right":"left"}}>{h}</span>))}
         </div>
         {scored.length===0&&<div style={{padding:"20px",textAlign:"center",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13}}>No brackets yet - be the first!</div>}
         {scored.map((b,i)=>{
           const isMe=b.user_id===userId,canView=picksVisible&&!isMe;
           return(
             <div key={b.id} style={{padding:"10px",borderBottom:i<scored.length-1?"1px solid "+C.border:"none",background:isMe?"rgba(6,182,212,.06)":"transparent",borderRadius:6}}>
-              <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 54px",gap:6,alignItems:"center"}}>
+              <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 50px 46px",gap:6,alignItems:"center"}}>
                 <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{i+1}</span>
                 <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default"}}>
                   <div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
@@ -1674,7 +1713,8 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
                   </div>
                 </div>
                 <span style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15,textAlign:"right"}}>{tournamentStarted?b.score:"---"}</span>
-                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
+                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.maxPts:"---"}</span>
+                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
               </div>
               {canView&&<div style={{marginTop:6,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
             </div>
@@ -1969,7 +2009,7 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
 }
 
 // ---- Pool Manager Panel ----
-function PoolManagerPanel({pool,allBrackets,results,onClose,userId}){
+function PoolManagerPanel({pool,allBrackets,results,onClose,userId,onPoolDeleted}){
   const[sc,setSc]=useState(pool.scoring_config||{...DEFAULT_SCORING});
   const[saving,setSaving]=useState(false),[ msg,setMsg]=useState("");
   const PtsIn=({label,field})=>(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+C.border}}><span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13}}>{label}</span><input type="number" value={sc[field]} onChange={e=>setSc(prev=>({...prev,[field]:+e.target.value}))} style={{width:52,padding:"4px 8px",background:C.card2,border:"1px solid "+C.borderAccent,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:16,textAlign:"center",outline:"none"}}/></div>);
@@ -1992,9 +2032,11 @@ function PoolManagerPanel({pool,allBrackets,results,onClose,userId}){
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1}}>MEMBERS</div>
             <button onClick={async()=>{
-              if(!window.confirm("Delete this pool permanently? All brackets in this pool will also be deleted. This cannot be undone."))return;
+              if(!window.confirm("Delete this pool permanently? All brackets will be deleted. This cannot be undone."))return;
+              await supabase.from("brackets").delete().eq("pool_id",pool.id);
+              await supabase.from("pool_members").delete().eq("pool_id",pool.id);
               await supabase.from("pools").delete().eq("id",pool.id);
-              onClose();window.location.reload();
+              onClose();onPoolDeleted&&onPoolDeleted();
             }} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"4px 10px",cursor:"pointer",letterSpacing:.5}}>DELETE POOL</button>
           </div>
           {allBrackets.map(b=>(<div key={b.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid "+C.border}}><div style={{flex:1}}><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{b.display_name||"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{b.bracket_name}</div></div>{b.user_id!==userId&&<button onClick={()=>removeMember(b.user_id)} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 8px",cursor:"pointer"}}>REMOVE</button>}</div>))}
@@ -2042,7 +2084,13 @@ function ManagerPage({allBrackets,results,onResultsUpdate,pools,userId}){
                 <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Code: {p.code} - {p.password?"Password":"Link only"} - {p.scoring_config?"Custom":"Default"} scoring</div>
               </div>
               <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"?join="+p.code).then(()=>{setCopied(p.code);setTimeout(()=>setCopied(null),2000);});}} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:copied===p.code?C.green:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>{copied===p.code?"COPIED":"COPY"}</button>
-              <button onClick={async()=>{if(!window.confirm("Delete pool "+p.name+"? All brackets will be deleted."))return;await supabase.from("pools").delete().eq("id",p.id);onResultsUpdate();setMsg("Pool deleted.");}} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>DELETE</button>
+              <button onClick={async()=>{
+              if(!window.confirm("Delete pool "+p.name+"? All brackets will be deleted."))return;
+              await supabase.from("brackets").delete().eq("pool_id",p.id);
+              await supabase.from("pool_members").delete().eq("pool_id",p.id);
+              await supabase.from("pools").delete().eq("id",p.id);
+              onResultsUpdate();setMsg("Pool deleted.");
+            }} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>DELETE</button>
             </div>
             {/* Show members for this pool */}
             {allBrackets.filter(b=>b.pool_id===p.id).map(b=>(
@@ -2328,7 +2376,7 @@ export default function App(){
         {viewingBracket&&<BracketViewer bracket={viewingBracket} results={results} onClose={()=>{setViewingBracket(null);if(viewSharedUserId)window.history.replaceState({},"","/");}}/>}
         {h2hBracket&&myBracket&&<HeadToHeadModal myBracket={myBracket} opponent={h2hBracket} results={results} onClose={()=>setH2hBracket(null)}/>}
         {showCreatePool&&<CreatePoolModal userId={user.id} displayName={displayName} onCreated={id=>{setShowCreatePool(false);loadPools();setActivePool(id);setShowBracketNameModal(true);}} onClose={()=>setShowCreatePool(false)}/>}
-        {showPoolManager&&currentPool&&<PoolManagerPanel pool={currentPool} allBrackets={allBrackets} results={results} onClose={()=>setShowPoolManager(false)} userId={user.id}/>}
+        {showPoolManager&&currentPool&&<PoolManagerPanel pool={currentPool} allBrackets={allBrackets} results={results} onClose={()=>setShowPoolManager(false)} userId={user.id} onPoolDeleted={()=>{setShowPoolManager(false);setActivePool(null);loadPools();}}/>}
         {showBracketNameModal&&<BracketNameModal defaultName={displayName.split(" ")[0]+"'s Picks"} onConfirm={handleBracketNameConfirm}/>}
       </div>
     </>
