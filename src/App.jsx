@@ -56,6 +56,28 @@ const NAME_TO_CODE = {
   "Colombia":"co","England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa",
 };
 
+// Official 2026 WC venue map - fallback if API doesn't return venue
+const MATCH_VENUES = {
+  "Mexico-South Africa":"Estadio Azteca, Mexico City",
+  "South Korea-Czechia":"Estadio Guadalajara",
+  "Canada-Bosnia & Herz.":"BMO Field, Toronto",
+  "USA-Paraguay":"SoFi Stadium, Los Angeles",
+  "Brazil-Morocco":"AT&T Stadium, Arlington",
+  "Netherlands-Japan":"Lumen Field, Seattle",
+  "Belgium-Iran":"BC Place, Vancouver",
+  "Spain-Uruguay":"Hard Rock Stadium, Miami",
+  "France-Senegal":"MetLife Stadium, East Rutherford",
+  "Argentina-Austria":"Rose Bowl, Pasadena",
+  "Portugal-Colombia":"Levi's Stadium, Santa Clara",
+  "England-Croatia":"Mercedes-Benz Stadium, Atlanta",
+};
+const getVenue=(m)=>{
+  if(m.venue) return m.venue;
+  const key=m.homeTeam?.name+"-"+m.awayTeam?.name;
+  const key2=m.awayTeam?.name+"-"+m.homeTeam?.name;
+  return MATCH_VENUES[key]||MATCH_VENUES[key2]||null;
+};
+
 const DEFAULT_SCORING = {exactPos:3,advancedWrong:1,wildcardCorrect:2,perfectGroup:6,r32:2,r16:4,qf:9,sf:13,third:5,champion:20};
 const MAX_POSSIBLE = 368;
 const ROUNDS = [
@@ -101,10 +123,10 @@ const initWildcardRanking = (picks,groupPicks) => {
 };
 
 // Build Round of 32 using ranked wildcards (WC1 vs WC2, WC3 vs WC4, etc.)
-// Official 2026 WC R32 bracket structure:
-// Groups A-H: winners cross-play runners-up (8 pure qualifier matches)
-// Groups I-L: winners and runners-up each face a wildcard (8 qualifier-vs-wildcard matches)
-// Wildcards NEVER play each other
+// Official 2026 FIFA World Cup Round of 32 bracket (Wikipedia/FIFA confirmed)
+// 8 group winners face wildcards, 8 runner-up pairs face each other.
+// Wildcards NEVER play each other.
+// Source: wikipedia.org/wiki/2026_FIFA_World_Cup_knockout_stage
 const buildR32 = (gp, wp, wcRanking) => {
   const g = (grp,pos) => gp[grp]?.[pos]||null;
   const allThirds = Object.keys(WC_GROUPS).map(grp=>gp[grp]?.[2]).filter(Boolean);
@@ -117,24 +139,38 @@ const buildR32 = (gp, wp, wcRanking) => {
   }
   const wc = i => wcTeams[i]||null;
   return [
-    // Groups A-H: cross-bracket winner vs runner-up (no wildcards)
-    [g("A",0),g("B",1)],  // 1A vs 2B
-    [g("B",0),g("A",1)],  // 1B vs 2A
-    [g("C",0),g("D",1)],  // 1C vs 2D
-    [g("D",0),g("C",1)],  // 1D vs 2C
-    [g("E",0),g("F",1)],  // 1E vs 2F
-    [g("F",0),g("E",1)],  // 1F vs 2E
-    [g("G",0),g("H",1)],  // 1G vs 2H
-    [g("H",0),g("G",1)],  // 1H vs 2G
-    // Groups I-L: each qualifier faces a wildcard (wildcards never play each other)
-    [g("I",0),wc(0)],     // 1I vs WC1 (best wildcard)
-    [g("I",1),wc(1)],     // 2I vs WC2
-    [g("J",0),wc(2)],     // 1J vs WC3
-    [g("J",1),wc(3)],     // 2J vs WC4
-    [g("K",0),wc(4)],     // 1K vs WC5
-    [g("K",1),wc(5)],     // 2K vs WC6
-    [g("L",0),wc(6)],     // 1L vs WC7
-    [g("L",1),wc(7)],     // 2L vs WC8 (weakest wildcard)
+    // Match 73: 2A vs 2B
+    [g("A",1), g("B",1)],
+    // Match 74: 1E vs WC1 (best wildcard)
+    [g("E",0), wc(0)],
+    // Match 75: 1F vs 2C
+    [g("F",0), g("C",1)],
+    // Match 76: 1C vs 2F
+    [g("C",0), g("F",1)],
+    // Match 77: 1I vs WC2
+    [g("I",0), wc(1)],
+    // Match 78: 2E vs 2I
+    [g("E",1), g("I",1)],
+    // Match 79: 1A vs WC3
+    [g("A",0), wc(2)],
+    // Match 80: 1L vs WC4
+    [g("L",0), wc(3)],
+    // Match 81: 1D vs WC5
+    [g("D",0), wc(4)],
+    // Match 82: 1G vs WC6
+    [g("G",0), wc(5)],
+    // Match 83: 2K vs 2L
+    [g("K",1), g("L",1)],
+    // Match 84: 1H vs 2J
+    [g("H",0), g("J",1)],
+    // Match 85: 1B vs WC7
+    [g("B",0), wc(6)],
+    // Match 86: 1J vs 2H
+    [g("J",0), g("H",1)],
+    // Match 87: 1K vs WC8 (weakest wildcard)
+    [g("K",0), wc(7)],
+    // Match 88: 2D vs 2G
+    [g("D",1), g("G",1)],
   ];
 };
 
@@ -1055,7 +1091,7 @@ function CompletionSummary({knockoutPicks,chalkPct,allBrackets}){
 }
 
 // ---- Bracket Page (view + edit mode) ----
-function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWildcardPicks,wildcardRanking,setWildcardRanking,knockoutPicks,setKnockoutPicks,locked,results,championGoalDiff,setChampionGoalDiff,triggerSave,bracketComplete,allBrackets}){
+function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWildcardPicks,wildcardRanking,setWildcardRanking,knockoutPicks,setKnockoutPicks,locked,results,championGoalDiff,setChampionGoalDiff,triggerSave,bracketComplete,allBrackets,onDeleteBracket,onLeavePool}){
   const[viewMode,setViewMode]=useState(bracketComplete?"view":"build");
   const[viewTab,setViewTab]=useState("groups");
 
@@ -1084,9 +1120,14 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
         <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:C.accent,letterSpacing:1.5}}>YOUR PICKS</div>
+            <div style={{display:"flex",gap:6}}>
             {!locked&&(
               <button onClick={handleEditGroups} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>EDIT PICKS</button>
             )}
+            {!locked&&(
+              <button onClick={onDeleteBracket} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>RESET</button>
+            )}
+          </div>
           </div>
           <div style={{display:"flex",gap:6,overflowX:"auto"}}>
             {["groups","wildcards","bracket","champion"].map(t=>(
@@ -1232,8 +1273,11 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
         ))}
       </div>
       {bracketComplete&&(
-        <div style={{padding:"8px 14px 0",textAlign:"right"}}>
+        <div style={{padding:"8px 14px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <button onClick={()=>setViewMode("view")} style={{background:"transparent",border:"none",color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:12,cursor:"pointer",textDecoration:"underline"}}>View all picks</button>
+          {!locked&&(
+            <button onClick={onLeavePool} style={{background:"transparent",border:"none",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Leave pool</button>
+          )}
         </div>
       )}
       {step==="groups"&&<GroupStagePage groupPicks={groupPicks} setGroupPicks={setGroupPicks} locked={locked} onNext={()=>setStep("wildcards")} results={results}/>}
@@ -1695,8 +1739,9 @@ function MatchesPage({matches,loading}){
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
           {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
           <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>{showScore?status:toET(m.utcDate)}</span>
-          {m.venue&&<span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto"}}>📍 {m.venue}</span>}
-          {!m.venue&&m.group&&<span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginLeft:"auto"}}>{m.group}</span>}
+          <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0}}>
+            {getVenue(m)?("📍 "+getVenue(m)):m.group||""}
+          </span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           {hCode&&<Flag code={hCode} size={22}/>}
@@ -2250,7 +2295,21 @@ export default function App(){
         {joinStatus==="expired"&&<div style={{background:"rgba(239,68,68,.1)",borderBottom:"1px solid rgba(239,68,68,.3)",padding:"10px 14px",textAlign:"center"}}><span style={{color:C.red,fontFamily:"'Barlow',sans-serif",fontSize:13}}>This pool's invite link has expired.</span></div>}
 
         {page==="home"&&<LeaderboardPage userId={user.id} displayName={displayName} bracketComplete={bracketComplete} bracketName={bracketName} setBracketName={setBracketName} saveName={saveName} allBrackets={allBrackets} results={results} locked={locked} picksVisible={picksVisible} onViewBracket={setViewingBracket} onH2H={setH2hBracket} oddsMap={oddsMap} currentPool={currentPool} matches={matches} globalPercentile={globalPercentile}/>}
-        {page==="bracket"&&<BracketPage step={bracketStep} setStep={setBracketStep} groupPicks={groupPicks} setGroupPicks={setGP} wildcardPicks={wildcardPicks} setWildcardPicks={setWP} wildcardRanking={wildcardRanking} setWildcardRanking={setWR} knockoutPicks={knockoutPicks} setKnockoutPicks={setKP} locked={locked} results={results} championGoalDiff={championGoalDiff} setChampionGoalDiff={setCGD} triggerSave={triggerSave} bracketComplete={bracketComplete} allBrackets={allBrackets}/>}
+        {page==="bracket"&&<BracketPage step={bracketStep} setStep={setBracketStep} groupPicks={groupPicks} setGroupPicks={setGP} wildcardPicks={wildcardPicks} setWildcardPicks={setWP} wildcardRanking={wildcardRanking} setWildcardRanking={setWR} knockoutPicks={knockoutPicks} setKnockoutPicks={setKP} locked={locked} results={results} championGoalDiff={championGoalDiff} setChampionGoalDiff={setCGD} triggerSave={triggerSave} bracketComplete={bracketComplete} allBrackets={allBrackets}
+          onDeleteBracket={async()=>{
+            if(!window.confirm("Reset your bracket? All picks will be cleared and you can start over. This cannot be undone."))return;
+            const fresh=initGroupPicks();
+            setGP(fresh);setWP([]);setWR([]);setKP({});setCGD(null);
+            setBracketStep("groups");
+            await supabase.from("brackets").update({group_picks:fresh,wildcard_picks:[],wildcard_ranking:[],knockout_picks:{},champion_goal_diff_pick:null}).eq("user_id",user.id).eq("pool_id",activePool);
+          }}
+          onLeavePool={async()=>{
+            if(!window.confirm("Leave this pool? Your bracket in this pool will be deleted. You can rejoin with the invite link."))return;
+            await supabase.from("brackets").delete().eq("user_id",user.id).eq("pool_id",activePool);
+            await supabase.from("pool_members").delete().eq("user_id",user.id).eq("pool_id",activePool);
+            setActivePool(null);loadPools();setPage("home");
+          }}
+        />}
         {page==="matches"&&<MatchesPage matches={matches} loading={matchesLoading}/>}
         {page==="insights"&&<InsightsPage allBrackets={allBrackets} userId={user.id} results={results} picksVisible={picksVisible} matches={matches}/>}
         {page==="manager"&&isAdmin&&<ManagerPage allBrackets={allBrackets} results={results} onResultsUpdate={loadResults} pools={pools} userId={user.id}/>}
