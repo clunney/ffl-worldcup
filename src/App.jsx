@@ -101,9 +101,12 @@ const initWildcardRanking = (picks,groupPicks) => {
 };
 
 // Build Round of 32 using ranked wildcards (WC1 vs WC2, WC3 vs WC4, etc.)
+// Official 2026 WC R32 bracket structure:
+// Groups A-H: winners cross-play runners-up (8 pure qualifier matches)
+// Groups I-L: winners and runners-up each face a wildcard (8 qualifier-vs-wildcard matches)
+// Wildcards NEVER play each other
 const buildR32 = (gp, wp, wcRanking) => {
   const g = (grp,pos) => gp[grp]?.[pos]||null;
-  // Use ranking order if available, fall back to FIFA sort of picks
   const allThirds = Object.keys(WC_GROUPS).map(grp=>gp[grp]?.[2]).filter(Boolean);
   let wcTeams;
   if(wcRanking&&wcRanking.length>0){
@@ -114,10 +117,24 @@ const buildR32 = (gp, wp, wcRanking) => {
   }
   const wc = i => wcTeams[i]||null;
   return [
-    [g("A",0),g("B",1)],[g("C",0),g("D",1)],[g("E",0),g("F",1)],[g("G",0),g("H",1)],
-    [g("B",0),g("A",1)],[g("D",0),g("C",1)],[g("F",0),g("E",1)],[g("H",0),g("G",1)],
-    [g("I",0),g("J",1)],[g("K",0),g("L",1)],[g("J",0),g("I",1)],[g("L",0),g("K",1)],
-    [wc(0),wc(1)],[wc(2),wc(3)],[wc(4),wc(5)],[wc(6),wc(7)],
+    // Groups A-H: cross-bracket winner vs runner-up (no wildcards)
+    [g("A",0),g("B",1)],  // 1A vs 2B
+    [g("B",0),g("A",1)],  // 1B vs 2A
+    [g("C",0),g("D",1)],  // 1C vs 2D
+    [g("D",0),g("C",1)],  // 1D vs 2C
+    [g("E",0),g("F",1)],  // 1E vs 2F
+    [g("F",0),g("E",1)],  // 1F vs 2E
+    [g("G",0),g("H",1)],  // 1G vs 2H
+    [g("H",0),g("G",1)],  // 1H vs 2G
+    // Groups I-L: each qualifier faces a wildcard (wildcards never play each other)
+    [g("I",0),wc(0)],     // 1I vs WC1 (best wildcard)
+    [g("I",1),wc(1)],     // 2I vs WC2
+    [g("J",0),wc(2)],     // 1J vs WC3
+    [g("J",1),wc(3)],     // 2J vs WC4
+    [g("K",0),wc(4)],     // 1K vs WC5
+    [g("K",1),wc(5)],     // 2K vs WC6
+    [g("L",0),wc(6)],     // 1L vs WC7
+    [g("L",1),wc(7)],     // 2L vs WC8 (weakest wildcard)
   ];
 };
 
@@ -314,10 +331,15 @@ const Flag = ({code,size=28}) => (
     style={{width:size,height:Math.round(size*.66),objectFit:"cover",borderRadius:2,flexShrink:0,display:"inline-block",verticalAlign:"middle"}}
     alt="" onError={e=>{e.target.style.opacity=0;}}/>
 );
-const FifaRank = ({code}) => {
+const FifaRank = ({code,showLabel=false}) => {
   const r = FIFA_RANKINGS[code];
   if(!r) return null;
-  return <span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",marginLeft:3,flexShrink:0}}>{"#"+r}</span>;
+  return (
+    <span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",marginLeft:3,flexShrink:0,display:"inline-flex",alignItems:"center",gap:1}}>
+      {showLabel&&<span style={{color:"#334155",fontSize:8}}>FIFA </span>}
+      {"#"+r}
+    </span>
+  );
 };
 const Card = ({children,accent,style={}}) => (
   <div style={{background:C.card,borderRadius:12,padding:"12px 14px",border:"1px solid "+(accent?C.borderAccent:C.border),marginBottom:12,...style}}>
@@ -653,7 +675,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +3 exact, +1 if they advance, +6 perfect group bonus. Pre-sorted by FIFA ranking."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +3 exact, +1 if they advance, +6 perfect group bonus."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -703,15 +725,20 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
     setWildcardRanking(next);setSwapSel(null);
   };
 
+  const wcDragIdx=useRef(null),[wcDragOver,setWcDragOver]=useState(null);
+  const onWcDragStart=(e,i)=>{wcDragIdx.current=i;e.dataTransfer.effectAllowed="move";};
+  const onWcDragEnter=(e,i)=>{e.preventDefault();setWcDragOver(i);};
+  const onWcDragOver=(e)=>{e.preventDefault();e.dataTransfer.dropEffect="move";};
+  const onWcDrop=(e,i)=>{e.preventDefault();if(wcDragIdx.current!==null&&wcDragIdx.current!==i){const next=[...wildcardRanking];const[r]=next.splice(wcDragIdx.current,1);next.splice(i,0,r);setWildcardRanking(next);}wcDragIdx.current=null;setWcDragOver(null);};
+  const onWcDragEnd=()=>{wcDragIdx.current=null;setWcDragOver(null);};
+
   if(phase==="rank"&&!hasActual){
     return(
       <div style={{paddingBottom:90}}>
         <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-          <SecHead label="RANK YOUR WILDCARDS" sub="Drag or tap to rank your 8 wildcards best to worst. This determines their bracket seeding."/>
+          <SecHead label="RANK YOUR WILDCARDS" sub="Drag or use arrows to rank best to worst. Ranking #1 plays the toughest opponent; #8 gets the easiest - same as real WC seeding."/>
           <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",marginBottom:8}}>
-            <div style={{color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.5}}>
-              <strong>Why this matters:</strong> Your #1 wildcard faces the best available opponent, #8 gets the easiest matchup - same as real life WC wildcard seeding.
-            </div>
+            <div style={{color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Pre-sorted by FIFA ranking. Drag the handle dots or use arrows to adjust.</div>
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setPhase("pick")} style={{...btn(false),flex:1,fontSize:13,padding:"8px"}}>BACK</button>
@@ -720,8 +747,13 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
         </div>
         <div style={{padding:12}}>
           {wildcardRanking.map((team,i)=>(
-            <div key={team.code} onClick={()=>isMobile()&&handleSwap(team)}
-              style={{display:"flex",alignItems:"center",gap:10,padding:"12px",marginBottom:8,background:swapSel===team.code?"rgba(6,182,212,.2)":C.card,borderRadius:10,border:"1px solid "+(swapSel===team.code?C.accent:C.borderAccent),cursor:isMobile()?"pointer":"default"}}>
+            <div key={team.code}
+              draggable={true}
+              onDragStart={e=>onWcDragStart(e,i)} onDragEnter={e=>onWcDragEnter(e,i)}
+              onDragOver={onWcDragOver} onDrop={e=>onWcDrop(e,i)} onDragEnd={onWcDragEnd}
+              onClick={()=>isMobile()&&handleSwap(team)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",marginBottom:8,background:wcDragOver===i?"rgba(6,182,212,.15)":swapSel===team.code?"rgba(6,182,212,.2)":C.card,borderRadius:10,border:"1px solid "+(wcDragOver===i||swapSel===team.code?C.accent:C.borderAccent),cursor:"grab",userSelect:"none"}}>
+              <span style={{color:C.muted,fontSize:14,flexShrink:0,cursor:"grab",padding:"0 2px",letterSpacing:-1}}>{":: "}</span>
               <div style={{width:28,height:28,borderRadius:"50%",background:i===0?"linear-gradient(135deg,"+C.accent+",#0891b2)":"rgba(6,182,212,.15)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <span style={{color:i===0?"#0a0e1a":C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13}}>{i+1}</span>
               </div>
@@ -729,10 +761,8 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
               <div style={{flex:1}}>
                 <div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{team.name}</div>
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>
-                    {i===0?"Best wildcard":i===7?"Weakest wildcard":""}
-                  </span>
                   <FifaRank code={team.code}/>
+                  <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>{i===0?"Best seed - toughest draw":i===7?"Weakest seed - easiest draw":""}</span>
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:3}}>
@@ -991,7 +1021,8 @@ function CompletionSummary({knockoutPicks,chalkPct,allBrackets}){
       <div style={{background:C.card2,borderRadius:10,padding:"14px",marginBottom:12,textAlign:"center"}}>
         <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,letterSpacing:1,marginBottom:6}}>YOUR CHALK SCORE</div>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:48,color:chalkColor,lineHeight:1,marginBottom:4}}>{chalkPct}%</div>
-        <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.4}}>{chalkLabel}</div>
+        <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.4,marginBottom:4}}>{chalkLabel}</div>
+        <div style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10}}>% of your knockout picks where you chose the higher FIFA-ranked team to advance</div>
         <div style={{background:C.bg,borderRadius:6,height:8,marginTop:10}}>
           <div style={{width:chalkPct+"%",height:"100%",background:"linear-gradient(90deg,"+C.red+","+C.amber+","+C.green+")",borderRadius:6,transition:"width .5s"}}/>
         </div>
@@ -1001,24 +1032,20 @@ function CompletionSummary({knockoutPicks,chalkPct,allBrackets}){
         </div>
       </div>
 
-      {/* Pick summary */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-        {ko.champion&&(
-          <div style={{background:C.card2,borderRadius:8,padding:10,textAlign:"center",gridColumn:"1 / -1"}}>
-            <div style={{color:C.muted,fontSize:10,fontFamily:"'Barlow',sans-serif",marginBottom:6}}>YOUR CHAMPION</div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-              <Flag code={ko.champion.code} size={32}/>
-              <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:1}}>{ko.champion.name}</div>
-            </div>
-            {allBrackets.length>1&&(()=>{
-              const pct=Math.round(allBrackets.filter(b=>b.knockout_picks?.champion?.code===ko.champion.code).length/allBrackets.length*100);
-              return <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginTop:4}}>{pct}% of this pool agree</div>;
-            })()}
+      {/* Champion card */}
+      {ko.champion&&(
+        <div style={{background:C.card2,borderRadius:8,padding:12,marginBottom:12,textAlign:"center"}}>
+          <div style={{color:C.muted,fontSize:10,fontFamily:"'Barlow',sans-serif",marginBottom:6}}>YOUR CHAMPION</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            <Flag code={ko.champion.code} size={32}/>
+            <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:1}}>{ko.champion.name}</div>
           </div>
-        )}
-        {sf0&&<div style={{background:C.card2,borderRadius:8,padding:10,textAlign:"center"}}><div style={{color:C.muted,fontSize:9,marginBottom:4}}>FINALIST 1</div><Flag code={sf0.code} size={24}/><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,marginTop:4}}>{sf0.name}</div></div>}
-        {sf1&&<div style={{background:C.card2,borderRadius:8,padding:10,textAlign:"center"}}><div style={{color:C.muted,fontSize:9,marginBottom:4}}>FINALIST 2</div><Flag code={sf1.code} size={24}/><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,marginTop:4}}>{sf1.name}</div></div>}
-      </div>
+          {allBrackets.length>1&&(()=>{
+            const pct=Math.round(allBrackets.filter(b=>b.knockout_picks?.champion?.code===ko.champion.code).length/allBrackets.length*100);
+            return <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginTop:6}}>{pct}% of this pool picked them too</div>;
+          })()}
+        </div>
+      )}
 
       <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,textAlign:"center",lineHeight:1.5}}>
         Head to <strong style={{color:C.accent}}>Standings</strong> to see where you rank in your pool{poolSize>1?" against "+poolSize+" entries":""}.
@@ -1040,14 +1067,13 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
 
   const handleEditGroups=()=>{
     if(locked)return;
+    if(Object.keys(knockoutPicks.r32||{}).length>0){
+      const confirmed=window.confirm("Changing group stage picks will reset your knockout bracket. Continue?");
+      if(!confirmed)return; // bail out entirely - don't switch modes
+      setKnockoutPicks({});
+    }
     setViewMode("build");
     setStep("groups");
-    // Warn that changing groups/wildcards resets knockout
-    if(Object.keys(knockoutPicks.r32||{}).length>0){
-      if(window.confirm("Changing group stage picks will reset your knockout bracket. Continue?"))
-        setKnockoutPicks({});
-      else return;
-    }
   };
 
   if(viewMode==="view"&&bracketComplete){
@@ -1074,6 +1100,9 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
 
         {viewTab==="groups"&&(
           <div style={{padding:12}}>
+            <div style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10,marginBottom:8,padding:"4px 8px",background:"rgba(255,255,255,.03)",borderRadius:6}}>
+              Numbers in grey (e.g. #12) are FIFA world rankings at time of tournament
+            </div>
             {Object.keys(WC_GROUPS).map(g=>(
               <div key={g} style={{background:C.card,borderRadius:10,padding:12,marginBottom:8,border:"1px solid "+C.border}}>
                 <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,color:C.accent,letterSpacing:1,marginBottom:8}}>GROUP {g}</div>
@@ -1108,32 +1137,58 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
 
         {viewTab==="bracket"&&(
           <div style={{padding:12}}>
+            <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif"}}>
+              Points are awarded per round independently. Grayed-out teams have been eliminated in the actual tournament.
+            </div>
             {ROUNDS.map(round=>{
               const picks=ko[round.id]||{};
+              const actualRound=results?.knockout_results?.[round.id]||{};
+              const actualWinnerCodes=new Set(Object.values(actualRound).map(t=>t?.code).filter(Boolean));
+              const roundPlayed=Object.keys(actualRound).length>0;
+              let roundPts=0;
+              if(round)roundPts=Object.values(picks).filter((pick,i)=>pick&&actualRound[i]?.code===pick.code).length*(round.pts||0);
               if(!Object.keys(picks).length)return null;
               return(
                 <div key={round.id} style={{marginBottom:14}}>
-                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:8}}>{round.fullLabel}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1}}>{round.fullLabel}</div>
+                    {roundPlayed&&<span style={{color:C.green,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>+{roundPts} pts</span>}
+                  </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
-                    {Object.values(picks).map((team,i)=>team?(
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:6,background:C.card,borderRadius:7,padding:"7px 10px",border:"1px solid "+C.border}}>
-                        <Flag code={team.code} size={18}/>
-                        <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:11,flex:1}}>{team.name}</span>
-                        <FifaRank code={team.code}/>
-                      </div>
-                    ):null)}
+                    {Object.entries(picks).map(([idx,team])=>team?(()=>{
+                      const isCorrect=roundPlayed&&actualRound[+idx]?.code===team.code;
+                      const isEliminated=roundPlayed&&!actualWinnerCodes.has(team.code);
+                      return(
+                        <div key={idx} style={{display:"flex",alignItems:"center",gap:6,background:C.card,borderRadius:7,padding:"7px 10px",border:"1px solid "+(isCorrect?C.green+"55":C.border),opacity:isEliminated?0.38:1}}>
+                          <Flag code={team.code} size={18}/>
+                          <span style={{color:isCorrect?C.green:isEliminated?C.muted:C.text,fontFamily:"'Barlow',sans-serif",fontSize:11,flex:1,textDecoration:isEliminated?"line-through":"none"}}>{team.name}</span>
+                          <FifaRank code={team.code}/>
+                          {roundPlayed&&<span style={{fontSize:10,color:isCorrect?C.green:C.red,flexShrink:0}}>{isCorrect?"+"+round.pts:"0"}</span>}
+                        </div>
+                      );
+                    })():null)}
                   </div>
                 </div>
               );
             })}
-            {ko.thirdPlace&&(
-              <div style={{marginBottom:14}}>
-                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.muted,letterSpacing:1,marginBottom:8}}>3RD PLACE</div>
-                <div style={{display:"flex",alignItems:"center",gap:8,background:C.card,borderRadius:7,padding:"7px 10px",border:"1px solid "+C.border,maxWidth:200}}>
-                  <Flag code={ko.thirdPlace.code} size={18}/><span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{ko.thirdPlace.name}</span>
+            {ko.thirdPlace&&(()=>{
+              const actual=results?.knockout_results?.thirdPlace;
+              const isCorrect=actual&&actual.code===ko.thirdPlace.code;
+              const roundPlayed=!!actual;
+              return(
+                <div style={{marginBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.muted,letterSpacing:1}}>3RD PLACE</div>
+                    {roundPlayed&&<span style={{color:C.green,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>+{isCorrect?5:0} pts</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,background:C.card,borderRadius:7,padding:"7px 10px",border:"1px solid "+(isCorrect?C.green+"55":C.border),maxWidth:220,opacity:roundPlayed&&!isCorrect?0.5:1}}>
+                    <Flag code={ko.thirdPlace.code} size={18}/>
+                    <span style={{color:isCorrect?C.green:C.text,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{ko.thirdPlace.name}</span>
+                    {roundPlayed&&<span style={{fontSize:10,color:isCorrect?C.green:C.red,marginLeft:"auto"}}>{isCorrect?"+5":"0"}</span>}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -1650,26 +1705,26 @@ function MatchesPage({matches,loading}){
             {hRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+hRank}</span>}
           </div>
           {showScore?(
-            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,minWidth:60,justifyContent:"center"}}>
               <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.home??"-"}</span>
               <span style={{color:C.muted,fontSize:14}}>:</span>
               <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.away??"-"}</span>
             </div>
           ):o?(
-            <div style={{flexShrink:0}}>
-              <div style={{display:"flex",gap:4,justifyContent:"center",marginBottom:2}}>
-                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:32,textAlign:"center"}}>HOME</span>
-                {o.draw&&<span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:32,textAlign:"center"}}>DRAW</span>}
-                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:32,textAlign:"center"}}>AWAY</span>
+            <div style={{flexShrink:0,textAlign:"center",minWidth:110}}>
+              <div style={{display:"flex",gap:3,justifyContent:"center",marginBottom:2}}>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>HOME</span>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>DRAW</span>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>AWAY</span>
               </div>
-              <div style={{display:"flex",gap:4}}>
-                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:32,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.home)||"---"}</span>
-                {o.draw&&<span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:32,textAlign:"center",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.draw)}</span>}
-                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:32,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.away)||"---"}</span>
+              <div style={{display:"flex",gap:3,justifyContent:"center"}}>
+                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.home)||"---"}</span>
+                <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 0"}}>{o.draw?fmtOdds(o.draw):"---"}</span>
+                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.away)||"---"}</span>
               </div>
             </div>
           ):(
-            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flexShrink:0}}>vs</span>
+            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flexShrink:0,minWidth:30,textAlign:"center"}}>vs</span>
           )}
           <div style={{display:"flex",alignItems:"center",gap:3,flex:1,justifyContent:"flex-end"}}>
             {aRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+aRank}</span>}
@@ -1889,7 +1944,14 @@ function PoolManagerPanel({pool,allBrackets,results,onClose,userId}){
           <button onClick={()=>navigator.clipboard.writeText(window.location.origin+"?join="+pool.code).then(()=>setMsg("Copied!"))} style={{...btn(true),width:"100%",marginTop:10}}>COPY INVITE LINK</button>
         </Card>
         <Card>
-          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:8}}>MEMBERS</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1}}>MEMBERS</div>
+            <button onClick={async()=>{
+              if(!window.confirm("Delete this pool permanently? All brackets in this pool will also be deleted. This cannot be undone."))return;
+              await supabase.from("pools").delete().eq("id",pool.id);
+              onClose();window.location.reload();
+            }} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"4px 10px",cursor:"pointer",letterSpacing:.5}}>DELETE POOL</button>
+          </div>
           {allBrackets.map(b=>(<div key={b.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid "+C.border}}><div style={{flex:1}}><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{b.display_name||"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{b.bracket_name}</div></div>{b.user_id!==userId&&<button onClick={()=>removeMember(b.user_id)} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 8px",cursor:"pointer"}}>REMOVE</button>}</div>))}
         </Card>
         <Card>
@@ -1927,7 +1989,25 @@ function ManagerPage({allBrackets,results,onResultsUpdate,pools,userId}){
       </Card>
       <Card>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:10}}>ALL POOLS</div>
-        {pools.map(p=>(<div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid "+C.border}}><div style={{flex:1}}><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{p.name}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Code: {p.code} - {p.password?"Password":"Link only"} - {p.scoring_config?"Custom":"Default"} scoring</div></div><button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"?join="+p.code).then(()=>{setCopied(p.code);setTimeout(()=>setCopied(null),2000);});}} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:copied===p.code?C.green:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>{copied===p.code?"COPIED":"COPY"}</button></div>))}
+        {pools.map(p=>(
+          <div key={p.id} style={{padding:"12px 0",borderBottom:"1px solid "+C.border}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+              <div style={{flex:1}}>
+                <div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{p.name}</div>
+                <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Code: {p.code} - {p.password?"Password":"Link only"} - {p.scoring_config?"Custom":"Default"} scoring</div>
+              </div>
+              <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"?join="+p.code).then(()=>{setCopied(p.code);setTimeout(()=>setCopied(null),2000);});}} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:copied===p.code?C.green:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>{copied===p.code?"COPIED":"COPY"}</button>
+              <button onClick={async()=>{if(!window.confirm("Delete pool "+p.name+"? All brackets will be deleted."))return;await supabase.from("pools").delete().eq("id",p.id);onResultsUpdate();setMsg("Pool deleted.");}} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>DELETE</button>
+            </div>
+            {/* Show members for this pool */}
+            {allBrackets.filter(b=>b.pool_id===p.id).map(b=>(
+              <div key={b.user_id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0 4px 12px",borderTop:"0.5px solid "+C.border}}>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flex:1}}>{b.display_name||b.bracket_name}</span>
+                <button onClick={async()=>{await supabase.from("pool_members").delete().eq("pool_id",p.id).eq("user_id",b.user_id);await supabase.from("brackets").delete().eq("pool_id",p.id).eq("user_id",b.user_id);onResultsUpdate();setMsg("Member removed.");}} style={{background:"transparent",border:"1px solid rgba(239,68,68,.25)",borderRadius:5,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:9,padding:"2px 6px",cursor:"pointer"}}>REMOVE</button>
+              </div>
+            ))}
+          </div>
+        ))}
       </Card>
       <Card>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:4}}>GLOBAL SCORING</div>
