@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "./supabase";
 
 const ADMIN_EMAIL  = "clunney22@gmail.com";
-const DEFAULT_POOL = "00000000-0000-0000-0000-000000000002";
+
 const RESULTS_ROW  = "00000000-0000-0000-0000-000000000001";
 const KICKOFF      = new Date("2026-06-11T18:00:00Z");
 
