@@ -1707,10 +1707,12 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           {globalPercentile!=null&&<div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{globalPercentile}%</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>global</div></div>}
         </div>
         {globalPercentile!=null&&tournamentStarted&&<div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,textAlign:"center",marginBottom:8}}>Top {globalPercentile}th percentile across all WCC pools</div>}
-        <div style={{padding:"8px 12px",background:C.card2,borderRadius:8,display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:13}}>{bracketComplete?"OK":"!"}</span>
-          <span style={{color:bracketComplete?C.text:C.amber,fontFamily:"'Barlow',sans-serif",fontSize:12,flex:1}}>{bracketComplete?bracketName+" - complete":"Your bracket is incomplete - tap Picks to finish"}</span>
-        </div>
+        {!bracketComplete&&(
+          <div style={{padding:"8px 12px",background:"rgba(245,158,11,.08)",borderRadius:8,border:"1px solid rgba(245,158,11,.2)",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{color:C.amber,fontSize:13}}>!</span>
+            <span style={{color:C.amber,fontFamily:"'Barlow',sans-serif",fontSize:12,flex:1}}>Your bracket is incomplete — tap Picks to finish</span>
+          </div>
+        )}
       </Card>
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1805,8 +1807,9 @@ function MatchesPage({matches,loading}){
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
           {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
           <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>{showScore?status:toET(m.utcDate)}</span>
-          <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0}}>
-            {getVenue(m)?("📍 "+getVenue(m)):m.group||""}
+          <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0,textAlign:"right"}}>
+            {m.group&&<span style={{marginRight:getVenue(m)?6:0}}>{m.group}</span>}
+            {getVenue(m)&&<span>{"📍 "+getVenue(m)}</span>}
           </span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
