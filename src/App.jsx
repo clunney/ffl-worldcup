@@ -453,6 +453,9 @@ function LoginScreen({joinPool}){
     if(mode==="signup"){
       const{error}=await supabase.auth.signUp({email,password,options:{data:{display_name:name}}});
       if(error)setError(error.message);else setSent(true);
+    }else if(mode==="forgot"){
+      const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+"?reset=1"});
+      if(error)setError(error.message);else setSent(true);
     }else{
       const{error}=await supabase.auth.signInWithPassword({email,password});
       if(error)setError(error.message);
@@ -473,7 +476,11 @@ function LoginScreen({joinPool}){
       {sent?(
         <div style={{background:C.card,borderRadius:14,padding:28,maxWidth:340,width:"100%",textAlign:"center",border:"1px solid "+C.borderAccent}}>
           <h3 style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,margin:"0 0 10px"}}>CHECK YOUR EMAIL</h3>
-          <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,lineHeight:1.6}}>Confirmation sent to <strong style={{color:C.text}}>{email}</strong>.</p>
+          <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,lineHeight:1.6}}>
+            {mode==="forgot"?"Password reset link sent to":"Confirmation sent to"} <strong style={{color:C.text}}>{email}</strong>.
+          </p>
+          {mode==="forgot"&&<p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginTop:8,lineHeight:1.5}}>Click the link in your email to set a new password.</p>}
+          <button onClick={()=>{setSent(false);setMode("login");}} style={{...btn(false),marginTop:16,width:"100%",fontSize:13}}>BACK TO SIGN IN</button>
         </div>
       ):(
         <div style={{background:C.card,borderRadius:14,padding:24,maxWidth:340,width:"100%",border:"1px solid "+C.borderAccent}}>
@@ -485,20 +492,39 @@ function LoginScreen({joinPool}){
             <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12}}>or email</span>
             <div style={{flex:1,height:1,background:C.border}}/>
           </div>
-          <div style={{display:"flex",marginBottom:16}}>
-            {["login","signup"].map(m=>(
-              <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:8,background:mode===m?C.accent:C.card2,color:mode===m?"#0a0e1a":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:.5,border:"1px solid "+C.borderAccent,borderRadius:m==="login"?"8px 0 0 8px":"0 8px 8px 0",cursor:"pointer"}}>
-                {m==="login"?"SIGN IN":"CREATE ACCOUNT"}
-              </button>
-            ))}
-          </div>
+          {mode!=="forgot"&&(
+            <div style={{display:"flex",marginBottom:16}}>
+              {["login","signup"].map(m=>(
+                <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:8,background:mode===m?C.accent:C.card2,color:mode===m?"#0a0e1a":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:.5,border:"1px solid "+C.borderAccent,borderRadius:m==="login"?"8px 0 0 8px":"0 8px 8px 0",cursor:"pointer"}}>
+                  {m==="login"?"SIGN IN":"CREATE ACCOUNT"}
+                </button>
+              ))}
+            </div>
+          )}
+          {mode==="forgot"&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:C.accent,letterSpacing:1,marginBottom:6}}>RESET PASSWORD</div>
+              <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12,lineHeight:1.5}}>Enter your email and we will send you a reset link.</p>
+            </div>
+          )}
           {mode==="signup"&&<input placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} style={inp}/>}
           <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inp}/>
-          <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmail()} style={{...inp,marginBottom:14}}/>
+          {mode!=="forgot"&&<input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmail()} style={{...inp,marginBottom:14}}/>}
+          {mode==="forgot"&&<div style={{height:4}}/>}
           {error&&<p style={{color:C.red,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12}}>{error}</p>}
-          <button onClick={handleEmail} disabled={loading||!email||!password||(mode==="signup"&&!name)} style={{...btn(true,loading||!email||!password||(mode==="signup"&&!name)),width:"100%"}}>
-            {loading?"...":mode==="login"?"SIGN IN":"CREATE ACCOUNT"}
+          <button onClick={handleEmail} disabled={loading||!email||(mode!=="forgot"&&!password)||(mode==="signup"&&!name)} style={{...btn(true,loading||!email||(mode!=="forgot"&&!password)||(mode==="signup"&&!name)),width:"100%",marginBottom:10}}>
+            {loading?"...":(mode==="login"?"SIGN IN":mode==="signup"?"CREATE ACCOUNT":"SEND RESET LINK")}
           </button>
+          {mode==="login"&&(
+            <button onClick={()=>{setMode("forgot");setError("");setPassword("");}} style={{background:"transparent",border:"none",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,cursor:"pointer",width:"100%",textAlign:"center",textDecoration:"underline"}}>
+              Forgot password?
+            </button>
+          )}
+          {mode==="forgot"&&(
+            <button onClick={()=>{setMode("login");setError("");}} style={{background:"transparent",border:"none",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,cursor:"pointer",width:"100%",textAlign:"center",textDecoration:"underline"}}>
+              Back to sign in
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1692,7 +1718,7 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{allBrackets.length} entries - {MAX_POSSIBLE} pts max</span>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 50px 46px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
-          {["#","BRACKET","PTS","MAX","PROJ"].map(h=>(<span key={h} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h!=="BRACKET"?"right":"left"}}>{h}</span>))}
+          {[["#",""],["BRACKET",""],["PTS","Current points"],["MAX","Points if all remaining picks correct"],["PROJ","Projected with odds favorites"]].map(([h,tip])=>(<span key={h} title={tip} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h!=="BRACKET"?"right":"left",cursor:tip?"help":"default"}}>{h}</span>))}
         </div>
         {scored.length===0&&<div style={{padding:"20px",textAlign:"center",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13}}>No brackets yet - be the first!</div>}
         {scored.map((b,i)=>{
@@ -2128,6 +2154,8 @@ export default function App(){
   const[showBracketNameModal,setShowBracketNameModal]=useState(false);
   const[joinCode,setJoinCode]=useState(null),[ joinPool,setJoinPool]=useState(null),[ joinStatus,setJoinStatus]=useState("idle"),[ pendingPoolId,setPendingPoolId]=useState(null);
   const[viewSharedUserId,setViewSharedUserId]=useState(null);
+  const[showPasswordReset,setShowPasswordReset]=useState(false);
+  const[newPassword,setNewPassword]=useState(""),[ resetMsg,setResetMsg]=useState("");
   const[bracketId,setBracketId]=useState(null),[ bracketName,setBracketName]=useState("My WCC Bracket"),[ editingNameHeader,setEditingNameHeader]=useState(false);
   const[groupPicks,setGroupPicksState]=useState(initGroupPicks);
   const[wildcardPicks,setWildcardPicksState]=useState([]);
@@ -2157,7 +2185,7 @@ export default function App(){
 
   useEffect(()=>{supabase.auth.getSession().then(({data:{session}})=>{setUser(session?.user??null);setLoading(false);});const{data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setUser(session?.user??null));return()=>subscription.unsubscribe();},[]);
 
-  useEffect(()=>{const params=new URLSearchParams(window.location.search);const code=params.get("join"),view=params.get("viewbracket");if(code)setJoinCode(code.toUpperCase());if(view)setViewSharedUserId(view);},[]);
+  useEffect(()=>{const params=new URLSearchParams(window.location.search);const code=params.get("join"),view=params.get("viewbracket"),reset=params.get("reset");if(code)setJoinCode(code.toUpperCase());if(view)setViewSharedUserId(view);if(reset==="1")setShowPasswordReset(true);},[]);
 
   useEffect(()=>{if(!joinCode)return;supabase.from("pools").select("*").eq("code",joinCode).single().then(({data})=>{if(data)setJoinPool(data);});},[joinCode]);
 
@@ -2378,6 +2406,23 @@ export default function App(){
         {showCreatePool&&<CreatePoolModal userId={user.id} displayName={displayName} onCreated={id=>{setShowCreatePool(false);loadPools();setActivePool(id);setShowBracketNameModal(true);}} onClose={()=>setShowCreatePool(false)}/>}
         {showPoolManager&&currentPool&&<PoolManagerPanel pool={currentPool} allBrackets={allBrackets} results={results} onClose={()=>setShowPoolManager(false)} userId={user.id} onPoolDeleted={()=>{setShowPoolManager(false);setActivePool(null);loadPools();}}/>}
         {showBracketNameModal&&<BracketNameModal defaultName={displayName.split(" ")[0]+"'s Picks"} onConfirm={handleBracketNameConfirm}/>}
+        {showPasswordReset&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+            <div style={{background:C.card,borderRadius:16,padding:28,maxWidth:360,width:"100%",border:"1px solid "+C.borderAccent,textAlign:"center"}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.accent,letterSpacing:1.5,marginBottom:8}}>SET NEW PASSWORD</div>
+              <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:20,lineHeight:1.5}}>Choose a new password for your account.</p>
+              <input type="password" placeholder="New password (min 8 chars)" value={newPassword} onChange={e=>setNewPassword(e.target.value)}
+                style={{...inp,fontSize:15,marginBottom:14}}/>
+              {resetMsg&&<p style={{color:resetMsg.includes("Error")?C.red:C.green,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12}}>{resetMsg}</p>}
+              <button onClick={async()=>{
+                if(newPassword.length<8){setResetMsg("Password must be at least 8 characters.");return;}
+                const{error}=await supabase.auth.updateUser({password:newPassword});
+                if(error)setResetMsg("Error: "+error.message);
+                else{setResetMsg("Password updated!");setTimeout(()=>{setShowPasswordReset(false);setNewPassword("");setResetMsg("");window.history.replaceState({},"","/");},1500);}
+              }} disabled={newPassword.length<8} style={{...btn(true,newPassword.length<8),width:"100%"}}>UPDATE PASSWORD</button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
