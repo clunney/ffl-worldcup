@@ -1040,7 +1040,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
 // ---- Completion Summary ----
 function CompletionSummary({knockoutPicks,chalkPct,allBrackets}){
   const ko=knockoutPicks;
-  const sf0=ko.sf?.[0],sf1=ko.sf?.[1];
+
   const chalkColor=chalkPct>=80?C.green:chalkPct>=60?C.amber:C.red;
   const chalkLabel=chalkPct>=80?"Very chalk - you trust the rankings":chalkPct>=60?"Balanced mix of chalk and upsets":chalkPct<40?"Bold upsets - high risk, high reward":"Leaning toward chalk";
   const poolSize=allBrackets.length;
