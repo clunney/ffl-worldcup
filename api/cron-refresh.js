@@ -28,12 +28,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ skipped: true, reason: "Outside tournament window" });
   }
 
-  // Only poll aggressively during match hours (11am–11pm ET = 15:00–04:00 UTC)
-  const hourUTC = now.getUTCHours();
-  const isMatchWindow = hourUTC >= 15 || hourUTC <= 4;
-  if (!isMatchWindow) {
-    return res.status(200).json({ skipped: true, reason: "Outside match hours" });
-  }
+  // Run all day during tournament - matches can be any time, 12pm-midnight ET
+  // No time-based skip during tournament window
 
   try {
     // Fetch from football-data.org
@@ -65,9 +61,35 @@ export default async function handler(req, res) {
       if (error) console.error("Cache write failed:", error.message);
     }
 
+    // Auto-lock picks and show brackets when first match goes live
+    const liveOrFinished = (data.matches || []).filter(
+      m => ["IN_PLAY","PAUSED","HALFTIME","FINISHED"].includes(m.status)
+    );
+
+    if (liveOrFinished.length > 0 && SUPABASE_URL && SERVICE_KEY) {
+      // Check current state first to avoid unnecessary writes
+      const { data: current } = await admin
+        .from("actual_results")
+        .select("tournament_locked, picks_visible")
+        .eq("id", "00000000-0000-0000-0000-000000000001")
+        .single();
+
+      if (!current?.tournament_locked || !current?.picks_visible) {
+        const { error: lockErr } = await admin
+          .from("actual_results")
+          .update({ tournament_locked: true, picks_visible: true })
+          .eq("id", "00000000-0000-0000-0000-000000000001");
+
+        if (lockErr) console.error("Auto-lock failed:", lockErr.message);
+        else console.log("Auto-locked and made picks visible — first match is live.");
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       matchCount: data.matches?.length || 0,
+      liveCount: liveOrFinished.length,
+      autoLocked: liveOrFinished.length > 0,
       fetchedAt: new Date().toISOString(),
     });
   } catch (e) {
