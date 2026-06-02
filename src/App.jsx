@@ -41,20 +41,38 @@ const normName = n => (n||"").toLowerCase()
   .replace("congo dr","dr congo").replace("curacao","curacao");
 
 const NAME_TO_CODE = {
-  "Mexico":"mx","South Africa":"za","Korea Republic":"kr","South Korea":"kr",
-  "Czechia":"cz","Czech Republic":"cz","Canada":"ca","Switzerland":"ch",
-  "Qatar":"qa","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba",
-  "Brazil":"br","Morocco":"ma","Haiti":"ht","Scotland":"gb-sct",
-  "United States":"us","USA":"us","Paraguay":"py","Australia":"au",
-  "Turkiye":"tr","Turkey":"tr","Germany":"de","Curacao":"cw",
-  "Ivory Coast":"ci","Cote d Ivoire":"ci","Ecuador":"ec",
-  "Netherlands":"nl","Japan":"jp","Sweden":"se","Tunisia":"tn",
-  "Belgium":"be","Egypt":"eg","Iran":"ir","IR Iran":"ir","New Zealand":"nz",
-  "Spain":"es","Cape Verde":"cv","Saudi Arabia":"sa","Uruguay":"uy",
-  "France":"fr","Senegal":"sn","Norway":"no","Iraq":"iq",
-  "Argentina":"ar","Algeria":"dz","Austria":"at","Jordan":"jo",
-  "Portugal":"pt","Congo DR":"cd","DR Congo":"cd","Uzbekistan":"uz",
-  "Colombia":"co","England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa",
+  // Mexico, Central America
+  "Mexico":"mx","Panama":"pa","Costa Rica":"cr","Honduras":"hn",
+  // South America
+  "Brazil":"br","Argentina":"ar","Colombia":"co","Uruguay":"uy",
+  "Ecuador":"ec","Paraguay":"py","Chile":"cl","Peru":"pe",
+  "Venezuela":"ve","Bolivia":"bo",
+  // Europe
+  "France":"fr","Spain":"es","Germany":"de","Netherlands":"nl",
+  "Portugal":"pt","Belgium":"be","Croatia":"hr","England":"gb-eng",
+  "Scotland":"gb-sct","Switzerland":"ch","Austria":"at","Sweden":"se",
+  "Norway":"no","Denmark":"dk","Poland":"pl","Czech Republic":"cz",
+  "Czechia":"cz","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba",
+  "Serbia":"rs","Ukraine":"ua","Turkey":"tr","Turkiye":"tr",
+  "Romania":"ro","Hungary":"hu","Slovakia":"sk","Slovenia":"si",
+  "Albania":"al","North Macedonia":"mk","Finland":"fi","Ireland":"ie",
+  "Wales":"gb-wls","Northern Ireland":"gb-nir","Georgia":"ge",
+  // Africa
+  "Morocco":"ma","Senegal":"sn","Egypt":"eg","Nigeria":"ng",
+  "Ghana":"gh","Ivory Coast":"ci","Cote d Ivoire":"ci","Cote d'Ivoire":"ci",
+  "Cameroon":"cm","Tunisia":"tn","Algeria":"dz","South Africa":"za",
+  "Cape Verde":"cv","DR Congo":"cd","Congo DR":"cd","Congo":"cd",
+  "Democratic Republic of Congo":"cd","Mali":"ml","Zambia":"zm",
+  // Asia & Oceania
+  "Japan":"jp","South Korea":"kr","Korea Republic":"kr","Australia":"au",
+  "Iran":"ir","IR Iran":"ir","Saudi Arabia":"sa","Qatar":"qa",
+  "Iraq":"iq","Jordan":"jo","Uzbekistan":"uz","New Zealand":"nz",
+  "Syria":"sy","UAE":"ae","United Arab Emirates":"ae",
+  // North America
+  "United States":"us","USA":"us","United States of America":"us",
+  "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
+  // Other
+  "Curacao":"cw","Scotland":"gb-sct",
 };
 
 
@@ -1914,62 +1932,76 @@ function MatchesPage({matches,loading}){
     const status=isLive?(m.status==="HALFTIME"?"HT":(m.minute||"")+"'"):"FT";
     const o=!showScore?getOdds(m.homeTeam?.name,m.awayTeam?.name):null;
 
+    // Shared team name style
+    const nameStyle={fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text};
+    const rankStyle={color:"#64748b",fontFamily:"'Barlow',sans-serif",fontSize:11,fontWeight:400};
+    const oddsStyle={fontFamily:"'Bebas Neue',sans-serif",fontSize:14,minWidth:44,textAlign:"center",borderRadius:5,padding:"3px 0"};
+
     return(
-      <div style={{padding:"11px 0",borderBottom:"1px solid "+C.border}}>
-        {/* Row 1: time/status + group badge */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+      <div style={{padding:"10px 0",borderBottom:"1px solid "+C.border}}>
+        {/* Header: time + group */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <div style={{display:"flex",alignItems:"center",gap:5}}>
-            {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
+            {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0,animation:"livepulse 1s infinite"}}/>}
             <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>
-              {showScore?status:toET(m.utcDate)}
+              {showScore?(isLive?"LIVE - "+status:"FT"):toET(m.utcDate)}
             </span>
           </div>
-          {m.group&&(
-            <span style={{background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 9px",borderRadius:10}}>
-              {m.group}
-            </span>
+          {m.group&&<span style={{background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 9px",borderRadius:10}}>{m.group}</span>}
+        </div>
+
+        {/* Two-column layout: teams left, score/odds right */}
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {/* Teams column */}
+          <div style={{flex:1,minWidth:0}}>
+            {/* Home */}
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
+              <Flag code={hCode} size={22}/>
+              <span style={{...nameStyle,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {m.homeTeam?.name||"TBD"}
+              </span>
+              {hRank&&<span style={rankStyle}>{"#"+hRank}</span>}
+            </div>
+            {/* Away */}
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <Flag code={aCode} size={22}/>
+              <span style={{...nameStyle,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {m.awayTeam?.name||"TBD"}
+              </span>
+              {aRank&&<span style={rankStyle}>{"#"+aRank}</span>}
+            </div>
+          </div>
+
+          {/* Score or odds column - fixed width, right-aligned */}
+          {showScore?(
+            <div style={{flexShrink:0,textAlign:"center",minWidth:60}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:C.text,lineHeight:1}}>
+                {m.score?.fullTime?.home??"-"}
+              </div>
+              <div style={{fontFamily:"'Barlow',sans-serif",fontSize:9,color:C.muted,margin:"2px 0"}}>
+                {isLive?status:"FT"}
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:C.text,lineHeight:1}}>
+                {m.score?.fullTime?.away??"-"}
+              </div>
+            </div>
+          ):o?(
+            <div style={{flexShrink:0,textAlign:"center"}}>
+              <div style={{display:"flex",gap:4,justifyContent:"center",marginBottom:2}}>
+                <span style={{...oddsStyle,color:C.accent,background:"rgba(6,182,212,.08)"}}>{fmtOdds(o.home)||"---"}</span>
+                <span style={{...oddsStyle,color:C.muted,background:"rgba(255,255,255,.04)"}}>{o.draw?fmtOdds(o.draw):"---"}</span>
+                <span style={{...oddsStyle,color:C.accent,background:"rgba(6,182,212,.08)"}}>{fmtOdds(o.away)||"---"}</span>
+              </div>
+              <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                {["HOME","DRAW","AWAY"].map(h=>(
+                  <span key={h} style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:44,textAlign:"center"}}>{h}</span>
+                ))}
+              </div>
+            </div>
+          ):(
+            <div style={{flexShrink:0,color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,minWidth:30,textAlign:"center"}}>vs</div>
           )}
         </div>
-        {/* Row 2: home team */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-          {hCode&&<Flag code={hCode} size={20}/>}
-          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text,flex:1}}>{m.homeTeam?.name||"TBD"}</span>
-          {hRank&&<span style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10,flexShrink:0}}>{"#"+hRank}</span>}
-          {/* Score or odds for home */}
-          {showScore?(
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text,minWidth:24,textAlign:"right"}}>{m.score?.fullTime?.home??"-"}</span>
-          ):o?(
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,minWidth:38,textAlign:"right",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.home)||"---"}</span>
-          ):null}
-        </div>
-        {/* Row 3: away team */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:showScore||o?0:0}}>
-          {aCode&&<Flag code={aCode} size={20}/>}
-          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text,flex:1}}>{m.awayTeam?.name||"TBD"}</span>
-          {aRank&&<span style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10,flexShrink:0}}>{"#"+aRank}</span>}
-          {showScore?(
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text,minWidth:24,textAlign:"right"}}>{m.score?.fullTime?.away??"-"}</span>
-          ):o?(
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,minWidth:38,textAlign:"right",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.away)||"---"}</span>
-          ):null}
-        </div>
-        {/* Row 4: draw odds (only pre-match, if available) */}
-        {!showScore&&o?.draw&&(
-          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flex:1}}>Draw</span>
-            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.muted,minWidth:38,textAlign:"right",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.draw)}</span>
-          </div>
-        )}
-        {/* Score divider line for live/finished */}
-        {showScore&&(
-          <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}>
-            <div style={{flex:1,height:.5,background:C.border}}/>
-            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>
-              {isLive?"Live":m.status==="FINISHED"?"Full time":""}
-            </span>
-            <div style={{flex:1,height:.5,background:C.border}}/>
-          </div>
-        )}
       </div>
     );
   };
