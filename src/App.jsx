@@ -1914,55 +1914,62 @@ function MatchesPage({matches,loading}){
     const status=isLive?(m.status==="HALFTIME"?"HT":(m.minute||"")+"'"):"FT";
     const o=!showScore?getOdds(m.homeTeam?.name,m.awayTeam?.name):null;
 
-    const TeamCell=({code,name,rank,alignRight=false})=>(
-      <div style={{display:"flex",alignItems:"center",gap:6,flex:1,justifyContent:alignRight?"flex-end":"flex-start"}}>
-        {alignRight&&rank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",flexShrink:0}}>{"FIFA #"+rank}</span>}
-        {alignRight&&code&&<Flag code={code} size={22}/>}
-        <div style={{textAlign:alignRight?"right":"left"}}>
-          <div style={{fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,color:C.text,whiteSpace:"nowrap"}}>{name||"TBD"}</div>
-        </div>
-        {!alignRight&&code&&<Flag code={code} size={22}/>}
-        {!alignRight&&rank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",flexShrink:0}}>{"FIFA #"+rank}</span>}
-      </div>
-    );
-
     return(
-      <div style={{padding:"12px 0",borderBottom:"1px solid "+C.border}}>
-        {/* Header row: time + group */}
-        <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
-          {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",marginRight:5,flexShrink:0}}/>}
-          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>
-            {showScore?status:toET(m.utcDate)}
-          </span>
-          {m.group&&<span style={{marginLeft:"auto",background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 8px",borderRadius:10}}>{m.group}</span>}
-        </div>
-        {/* Match row: home - center - away */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
-          <TeamCell code={hCode} name={m.homeTeam?.name} rank={hRank}/>
-          {showScore?(
-            <div style={{textAlign:"center",minWidth:52}}>
-              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text}}>{m.score?.fullTime?.home??"-"}</span>
-              <span style={{color:C.muted,fontSize:16,margin:"0 3px"}}>:</span>
-              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text}}>{m.score?.fullTime?.away??"-"}</span>
-            </div>
-          ):o?(
-            <div style={{textAlign:"center"}}>
-              <div style={{display:"flex",gap:2,justifyContent:"center",marginBottom:2}}>
-                {["HOME","DRAW","AWAY"].map(h=>(
-                  <span key={h} style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:36,textAlign:"center"}}>{h}</span>
-                ))}
-              </div>
-              <div style={{display:"flex",gap:2,justifyContent:"center"}}>
-                {[o.home,o.draw,o.away].map((v,i)=>(
-                  <span key={i} style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:36,textAlign:"center",background:i===1?"rgba(255,255,255,.04)":"rgba(6,182,212,.08)",color:i===1?C.muted:C.accent,borderRadius:4,padding:"2px 0"}}>{fmtOdds(v)||"---"}</span>
-                ))}
-              </div>
-            </div>
-          ):(
-            <div style={{textAlign:"center",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12}}>vs</div>
+      <div style={{padding:"11px 0",borderBottom:"1px solid "+C.border}}>
+        {/* Row 1: time/status + group badge */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
+            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>
+              {showScore?status:toET(m.utcDate)}
+            </span>
+          </div>
+          {m.group&&(
+            <span style={{background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 9px",borderRadius:10}}>
+              {m.group}
+            </span>
           )}
-          <TeamCell code={aCode} name={m.awayTeam?.name} rank={aRank} alignRight/>
         </div>
+        {/* Row 2: home team */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          {hCode&&<Flag code={hCode} size={20}/>}
+          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text,flex:1}}>{m.homeTeam?.name||"TBD"}</span>
+          {hRank&&<span style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10,flexShrink:0}}>{"#"+hRank}</span>}
+          {/* Score or odds for home */}
+          {showScore?(
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text,minWidth:24,textAlign:"right"}}>{m.score?.fullTime?.home??"-"}</span>
+          ):o?(
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,minWidth:38,textAlign:"right",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.home)||"---"}</span>
+          ):null}
+        </div>
+        {/* Row 3: away team */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:showScore||o?0:0}}>
+          {aCode&&<Flag code={aCode} size={20}/>}
+          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text,flex:1}}>{m.awayTeam?.name||"TBD"}</span>
+          {aRank&&<span style={{color:"#475569",fontFamily:"'Barlow',sans-serif",fontSize:10,flexShrink:0}}>{"#"+aRank}</span>}
+          {showScore?(
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text,minWidth:24,textAlign:"right"}}>{m.score?.fullTime?.away??"-"}</span>
+          ):o?(
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,minWidth:38,textAlign:"right",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.away)||"---"}</span>
+          ):null}
+        </div>
+        {/* Row 4: draw odds (only pre-match, if available) */}
+        {!showScore&&o?.draw&&(
+          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flex:1}}>Draw</span>
+            <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.muted,minWidth:38,textAlign:"right",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 5px"}}>{fmtOdds(o.draw)}</span>
+          </div>
+        )}
+        {/* Score divider line for live/finished */}
+        {showScore&&(
+          <div style={{display:"flex",alignItems:"center",gap:4,marginTop:2}}>
+            <div style={{flex:1,height:.5,background:C.border}}/>
+            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>
+              {isLive?"Live":m.status==="FINISHED"?"Full time":""}
+            </span>
+            <div style={{flex:1,height:.5,background:C.border}}/>
+          </div>
+        )}
       </div>
     );
   };
