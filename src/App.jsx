@@ -2506,7 +2506,7 @@ export default function App(){
     if(currentPool?.scoring_config)return;
     const calc=async()=>{const{data:allData}=await supabase.from("cross_pool_scores").select("user_id,group_picks,wildcard_picks,knockout_picks");if(!allData||allData.length<10)return;const myScore=calculateScore({group_picks:groupPicks,wildcard_picks:wildcardPicks,knockout_picks:knockoutPicks},liveResults,DEFAULT_SCORING).total;const allScores=allData.map(b=>calculateScore(b,results,DEFAULT_SCORING).total).sort((a,b)=>a-b);const below=allScores.filter(s=>s<myScore).length;setGlobalPercentile(Math.round((below/allScores.length)*100));};
     calc();
-  },[user,results,currentPool,groupPicks,wildcardPicks,knockoutPicks]);
+  },[user,liveResults,currentPool,groupPicks,wildcardPicks,knockoutPicks]); // eslint-disable-line
 
   useEffect(()=>{if(!viewSharedUserId||!allBrackets.length)return;const b=allBrackets.find(x=>x.user_id===viewSharedUserId);if(b)setViewingBracket(b);},[viewSharedUserId,allBrackets]);
 
