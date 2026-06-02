@@ -72,7 +72,7 @@ const NAME_TO_CODE = {
   "United States":"us","USA":"us","United States of America":"us",
   "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
   // Other
-  "Curacao":"cw","Scotland":"gb-sct",
+  "Curacao":"cw",
 };
 
 
