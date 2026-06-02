@@ -803,7 +803,8 @@ function CreatePoolModal({userId,displayName,onCreated,onClose}){
     await supabase.from("pool_members").insert({pool_id:pool.id,user_id:userId,role:"manager"});
     await supabase.from("brackets").upsert({user_id:userId,pool_id:pool.id,display_name:displayName},{onConflict:"user_id,pool_id"});
     setSaving(false);
-    navigator.clipboard.writeText(inviteUrl).catch(()=>{});
+    const msg="Hey! Join my World Cup 2026 bracket pool on WCC and make your picks before the first match on June 11! "+inviteUrl;
+    navigator.clipboard.writeText(msg).catch(()=>{});
     onCreated(pool.id);
   };
   return(
@@ -1852,7 +1853,10 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
   const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
   const myEntry=scored.find(b=>b.user_id===userId),myPos=myEntry?scored.indexOf(myEntry)+1:null;
-  const shareMyBracket=()=>{navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
+  const shareMyBracket=()=>{
+    navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId)
+      .then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
+  };
 
   const commitName=()=>{if(nameVal.trim()){saveName(nameVal.trim());setEditingName(false);}};
 
@@ -2004,49 +2008,55 @@ function MatchesPage({matches,loading}){
     const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
     const status=isLive?(m.status==="HALFTIME"?"HT":(m.minute||"")+"'"):"FT";
     const o=!showScore?getOdds(m.homeTeam?.name,m.awayTeam?.name):null;
+
+    const TeamCell=({code,name,rank,alignRight=false})=>(
+      <div style={{display:"flex",alignItems:"center",gap:6,flex:1,justifyContent:alignRight?"flex-end":"flex-start"}}>
+        {alignRight&&rank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",flexShrink:0}}>{"FIFA #"+rank}</span>}
+        {alignRight&&code&&<Flag code={code} size={22}/>}
+        <div style={{textAlign:alignRight?"right":"left"}}>
+          <div style={{fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,color:C.text,whiteSpace:"nowrap"}}>{name||"TBD"}</div>
+        </div>
+        {!alignRight&&code&&<Flag code={code} size={22}/>}
+        {!alignRight&&rank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif",flexShrink:0}}>{"FIFA #"+rank}</span>}
+      </div>
+    );
+
     return(
       <div style={{padding:"12px 0",borderBottom:"1px solid "+C.border}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-          {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
-          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>{showScore?status:toET(m.utcDate)}</span>
-          <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0,textAlign:"right"}}>
-            {m.group&&<span style={{marginRight:getVenue(m)?6:0}}>{m.group}</span>}
-            {getVenue(m)&&<span>{"📍 "+getVenue(m)}</span>}
+        {/* Header row: time + group */}
+        <div style={{display:"flex",alignItems:"center",marginBottom:8}}>
+          {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",marginRight:5,flexShrink:0}}/>}
+          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>
+            {showScore?status:toET(m.utcDate)}
           </span>
+          {m.group&&<span style={{marginLeft:"auto",background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 8px",borderRadius:10}}>{m.group}</span>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          {hCode&&<Flag code={hCode} size={22}/>}
-          <div style={{display:"flex",alignItems:"center",gap:3,flex:1}}>
-            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text}}>{m.homeTeam?.name||"TBD"}</span>
-            {hRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+hRank}</span>}
-          </div>
+        {/* Match row: home - center - away */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+          <TeamCell code={hCode} name={m.homeTeam?.name} rank={hRank}/>
           {showScore?(
-            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,minWidth:60,justifyContent:"center"}}>
-              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.home??"-"}</span>
-              <span style={{color:C.muted,fontSize:14}}>:</span>
-              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.away??"-"}</span>
+            <div style={{textAlign:"center",minWidth:52}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text}}>{m.score?.fullTime?.home??"-"}</span>
+              <span style={{color:C.muted,fontSize:16,margin:"0 3px"}}>:</span>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.text}}>{m.score?.fullTime?.away??"-"}</span>
             </div>
           ):o?(
-            <div style={{flexShrink:0,textAlign:"center",minWidth:110}}>
-              <div style={{display:"flex",gap:3,justifyContent:"center",marginBottom:2}}>
-                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>HOME</span>
-                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>DRAW</span>
-                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>AWAY</span>
+            <div style={{textAlign:"center"}}>
+              <div style={{display:"flex",gap:2,justifyContent:"center",marginBottom:2}}>
+                {["HOME","DRAW","AWAY"].map(h=>(
+                  <span key={h} style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:36,textAlign:"center"}}>{h}</span>
+                ))}
               </div>
-              <div style={{display:"flex",gap:3,justifyContent:"center"}}>
-                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.home)||"---"}</span>
-                <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 0"}}>{o.draw?fmtOdds(o.draw):"---"}</span>
-                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.away)||"---"}</span>
+              <div style={{display:"flex",gap:2,justifyContent:"center"}}>
+                {[o.home,o.draw,o.away].map((v,i)=>(
+                  <span key={i} style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:36,textAlign:"center",background:i===1?"rgba(255,255,255,.04)":"rgba(6,182,212,.08)",color:i===1?C.muted:C.accent,borderRadius:4,padding:"2px 0"}}>{fmtOdds(v)||"---"}</span>
+                ))}
               </div>
             </div>
           ):(
-            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flexShrink:0,minWidth:30,textAlign:"center"}}>vs</span>
+            <div style={{textAlign:"center",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12}}>vs</div>
           )}
-          <div style={{display:"flex",alignItems:"center",gap:3,flex:1,justifyContent:"flex-end"}}>
-            {aRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+aRank}</span>}
-            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text}}>{m.awayTeam?.name||"TBD"}</span>
-          </div>
-          {aCode&&<Flag code={aCode} size={22}/>}
+          <TeamCell code={aCode} name={m.awayTeam?.name} rank={aRank} alignRight/>
         </div>
       </div>
     );
@@ -2257,7 +2267,15 @@ function PoolManagerPanel({pool,allBrackets,results,onClose,userId,onPoolDeleted
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:8}}>INVITE LINK</div>
           <div style={{color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:12,wordBreak:"break-all",marginBottom:6}}>{window.location.origin+"?join="+pool.code}</div>
           {pool.password&&<div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginBottom:8}}>Password: <strong style={{color:C.text}}>{pool.password}</strong></div>}
-          <button onClick={()=>navigator.clipboard.writeText(window.location.origin+"?join="+pool.code).then(()=>setMsg("Copied!"))} style={{...btn(true),width:"100%",marginTop:10}}>COPY INVITE LINK</button>
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
+          <button onClick={()=>{
+            const msg="Hey! I just filled out my World Cup 2026 bracket on WCC - you should join my pool and make your picks before the first match kicks off on June 11! "+window.location.origin+"?join="+pool.code;
+            navigator.clipboard.writeText(msg).then(()=>setMsg("Message copied!"));
+          }} style={{...btn(true),width:"100%"}}>COPY INVITE MESSAGE</button>
+          <button onClick={()=>{
+            navigator.clipboard.writeText(window.location.origin+"?join="+pool.code).then(()=>setMsg("Link copied!"));
+          }} style={{...btn(false),width:"100%",fontSize:13}}>COPY LINK ONLY</button>
+        </div>
         </Card>
         <Card>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -2392,26 +2410,36 @@ export default function App(){
 
   useEffect(()=>{const params=new URLSearchParams(window.location.search);const code=params.get("join"),view=params.get("viewbracket"),reset=params.get("reset");if(code)setJoinCode(code.toUpperCase());if(view)setViewSharedUserId(view);if(reset==="1")setShowPasswordReset(true);},[]);
 
-  useEffect(()=>{if(!joinCode)return;supabase.from("pools").select("*").eq("code",joinCode).single().then(({data})=>{if(data)setJoinPool(data);});},[joinCode]);
+  useEffect(()=>{
+    if(!joinCode)return;
+    // Use server-side endpoint so unauthenticated users can look up pool by code
+    fetch("/api/pool-lookup?code="+joinCode)
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{if(data&&!data.error)setJoinPool(data);})
+      .catch(()=>{});
+  },[joinCode]);
 
   useEffect(()=>{
     if(!user||!joinPool||joinStatus!=="idle")return;
     const doJoin=async()=>{
       setJoinStatus("joining");
-      if(new Date()>new Date(joinPool.invite_expires_at)){setJoinStatus("expired");return;}
-      const{data:existing}=await supabase.from("pool_members").select("*").eq("pool_id",joinPool.id).eq("user_id",user.id).single();
-      if(existing){setJoinStatus("done");setActivePool(joinPool.id);window.history.replaceState({},"","/");return;}
+      if(joinPool.invite_expires_at&&new Date()>new Date(joinPool.invite_expires_at)){setJoinStatus("expired");return;}
+      // Check if already a member
+      const{data:existing}=await supabase.from("pool_members").select("pool_id").eq("pool_id",joinPool.id).eq("user_id",user.id).single();
+      if(existing){setJoinStatus("done");setActivePool(joinPool.id);loadPools();window.history.replaceState({},"","/");return;}
+      // Insert membership (RLS allows users to add themselves)
       const{error}=await supabase.from("pool_members").insert({pool_id:joinPool.id,user_id:user.id});
       if(!error){
         await supabase.from("brackets").upsert({user_id:user.id,pool_id:joinPool.id,display_name:displayName},{onConflict:"user_id,pool_id"});
         setJoinStatus("naming");
         setPendingPoolId(joinPool.id);
         setShowBracketNameModal(true);
+        loadPools();
         window.history.replaceState({},"","/");
-      }else setJoinStatus("error");
+      }else{console.error("Join error:",error.message);setJoinStatus("error");}
     };
     doJoin();
-  },[user,joinPool,joinStatus,displayName]);
+  },[user,joinPool,joinStatus,displayName]); // eslint-disable-line
 
   const handleBracketNameConfirm=async(name)=>{
     setBracketName(name);
