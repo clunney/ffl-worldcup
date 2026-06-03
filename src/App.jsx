@@ -1718,7 +1718,7 @@ function FaqCard(){
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
         <p style={{marginBottom:8}}>Points are only awarded for your <strong style={{color:"#f1f5f9"}}>1st and 2nd place picks</strong>. No points for 3rd or 4th place predictions.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","Your 1st or 2nd pick advances (finishes top 2)"],["+2","Your pick finishes in the exact position (1st or 2nd) — includes the +1"],["+4 bonus","Both your 1st AND 2nd pick land in the exact right position"],["+1","3rd place pick advances as a wildcard — scored via your wildcard selections"]].map(([pts,desc],i)=>(
+          {[["+1","Your 1st or 2nd pick advances (finishes top 2)"],["+2","Your pick finishes in the exact position (1st or 2nd) — includes the +1"],["+4 bonus","All 4 teams finish in the exact order you predicted (1st, 2nd, 3rd, and 4th)"],["+1","3rd place pick advances as a wildcard — scored via your wildcard selections"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
@@ -1733,7 +1733,7 @@ function FaqCard(){
             <span style={{color:"#64748b"}}>+0</span><span>S.Africa — picked 4th, no group pts</span>
             <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 2 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group</span>
           </div>
-          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Best case:</strong> You pick Brazil 1st, Morocco 2nd — both finish in exactly those spots. +2 (Brazil exact) + +2 (Morocco exact) + +4 perfect bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong> for one group.</div>
+          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Best case:</strong> You predict all 4 teams in the exact finishing order — +2 (1st exact) + +2 (2nd exact) + +4 perfect bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong> for one group. All 4 must be exact, not just the top 2.</div>
         </div>
       </div>
     )},
