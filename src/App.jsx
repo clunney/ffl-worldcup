@@ -954,7 +954,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
 
   const pointsNote=(
     <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
-      <strong style={{color:C.accent}}>Points tip:</strong> You earn points for any correct pick in each round, even if your earlier rounds were wrong. A team that loses in round 1 in real life can still score you points here if you picked them to go deep.
+      <strong style={{color:C.accent}}>How points work:</strong> You earn points if your picked team wins that round — <strong style={{color:C.text}}>the opponent doesn't matter</strong>. Your bracket is built from your own picks, so matchups may differ from real life. That's fine: if the team wins their round, you score. Each round is scored independently.
     </div>
   );
 
@@ -1061,7 +1061,21 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
         </div>
       )}
 
-      {!locked&&<div style={{padding:"0 12px"}}><button onClick={onBack} style={{...btn(false),width:"100%"}}>BACK TO WILDCARDS</button></div>}
+      {!locked&&activeRound!=="final"&&(()=>{
+        const nextRoundMap={r32:"r16",r16:"qf",qf:"sf",sf:"final"};
+        const nextRoundLabel={r32:"R16",r16:"Quarterfinals",qf:"Semifinals",sf:"Final"};
+        const currentComplete=Object.keys(knockoutPicks[activeRound]||{}).length>=(ROUNDS.find(r=>r.id===activeRound)||{n:0}).n;
+        const nextId=nextRoundMap[activeRound];
+        return currentComplete&&nextId?(
+          <div style={{padding:"8px 12px 0"}}>
+            <button onClick={()=>changeRound(nextId)}
+              style={{...btn(true),width:"100%",fontSize:15,padding:"13px"}}>
+              NEXT: {nextRoundLabel[activeRound]} →
+            </button>
+          </div>
+        ):null;
+      })()}
+      {!locked&&<div style={{padding:"8px 12px 0"}}><button onClick={onBack} style={{...btn(false),width:"100%"}}>BACK TO WILDCARDS</button></div>}
     </div>
   );
 }
@@ -1732,10 +1746,11 @@ function FaqCard(){
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
         <p style={{marginBottom:8}}>You earn <strong style={{color:"#f1f5f9"}}>+1</strong> if a team you predicted to advance actually advances, and <strong style={{color:"#f1f5f9"}}>+1 more</strong> (total +2) if they land in the exact position you picked. The advance +1 from your group picks and the +1 from your wildcard picks are the <strong style={{color:"#f59e0b"}}>same point — they never stack</strong>. Max +1 per team for advancing.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","A team you picked to advance (1st/2nd pick or wildcard pick) actually advances"],["+1 more","They finish in the exact position you picked (1st or 2nd) — total of +2, not on top of the advance point"],["+4 bonus","All 4 teams in the group finish in the exact order you predicted"],["⚠️ no stack","Group advance +1 and wildcard +1 are the same point. Max +1 per team for advancing, never +2"]].map(([pts,desc],i)=>(
+          {[["+1","A team you picked to advance (1st/2nd pick or wildcard pick) actually advances"],["+1 more","They finish in the exact position you picked (1st or 2nd) — total of +2, not added on top"],["+4 bonus","All 4 teams in the group finish in the exact order you predicted"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
+        <p style={{fontSize:11,color:"#64748b",marginBottom:8,fontStyle:"italic"}}>⚠️ The advance +1 from group picks and the +1 from wildcard picks are the same point — they never stack. Max +1 per team for advancing.</p>
         <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px"}}>
           <div style={{color:"#f1f5f9",fontWeight:600,marginBottom:4}}>Example — Group A</div>
           <div style={{marginBottom:2}}>Your picks: Mexico 1st, S.Korea 2nd | Wildcard pick: Czechia</div>
