@@ -740,6 +740,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
   const[phase,setPhase]=useState("pick"); // "pick" | "rank"
   const thirds=Object.keys(WC_GROUPS).map(g=>({group:g,team:groupPicks[g][2]}));
   const validThirdCodes=thirds.map(t=>t.team?.code).filter(Boolean);
+  const validThirdCodesKey=validThirdCodes.join(",");
   const actualWC=results?.wildcard_codes||[],hasActual=actualWC.length>0;
   const[swapSel,setSwapSel]=useState(null);
 
@@ -747,7 +748,8 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
     if(locked)return;
     const stale=wildcardPicks.filter(code=>!validThirdCodes.includes(code));
     if(stale.length>0) setWildcardPicks(prev=>prev.filter(code=>validThirdCodes.includes(code)));
-  },[validThirdCodes.join(",")]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[validThirdCodesKey]);
 
   const toggle=code=>{
     if(locked)return;
