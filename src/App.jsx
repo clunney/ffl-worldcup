@@ -1730,7 +1730,7 @@ function FaqCard(){
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
         <p style={{marginBottom:8}}>You earn +1 for any team you predicted to advance that actually advances — whether via your 1st/2nd picks or wildcard picks, and regardless of which route they took. +2 if exact position.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","Any team you predicted to advance actually advances — via top 2 or wildcard, either route counts"],["+2","Your 1st or 2nd pick finishes in the exact position you predicted (includes the +1)"],["+4 bonus","All 4 teams finish in the exact order you predicted"],["+1","Wildcard pick correct — selected team advances by any route"].map(([pts,desc],i)=>(
+          {[["+1","Any team you predicted to advance actually advances — via top 2 or wildcard, either route counts"],["+2","Your 1st or 2nd pick finishes in the exact position you predicted (includes the +1)"],["+4 bonus","All 4 teams finish in the exact order you predicted"],["+1","Wildcard pick correct — selected team advances by any route"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
