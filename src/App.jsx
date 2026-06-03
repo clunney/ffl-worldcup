@@ -8,12 +8,12 @@ const KICKOFF     = new Date("2026-06-11T18:00:00Z");
 
 // FIFA Rankings (approximate current)
 const FIFA_RANKINGS = {
-  "ar":1,"fr":2,"be":3,"br":4,"gb-eng":5,"nl":6,"pt":7,"es":8,
-  "co":10,"us":11,"de":12,"mx":13,"ma":14,"hr":15,"ch":16,"uy":17,
-  "jp":18,"sn":20,"ir":21,"au":23,"kr":24,"at":25,"no":27,"tn":30,
-  "se":31,"eg":33,"dz":35,"cz":36,"gb-sct":39,"ec":40,"ca":41,
-  "qa":42,"tr":47,"ci":48,"pa":49,"py":52,"cd":53,"ba":55,"sa":56,
-  "cv":60,"gh":63,"za":67,"iq":70,"jo":78,"uz":82,"ht":86,"cw":95,"nz":97,
+  "fr":1,"es":2,"ar":3,"gb-eng":4,"pt":5,"br":6,"nl":7,"ma":8,"be":9,"de":10,
+  "hr":11,"co":13,"sn":14,"mx":15,"us":16,"uy":17,"jp":18,"ch":19,"ir":21,
+  "au":23,"kr":24,"at":25,"no":27,"tn":30,"se":31,"eg":33,"dz":35,"cz":36,
+  "gb-sct":39,"ec":40,"ca":41,"qa":42,"tr":47,"ci":48,"pa":49,"py":52,
+  "cd":53,"ba":55,"sa":56,"cv":60,"gh":63,"za":67,"iq":70,"jo":78,
+  "uz":82,"ht":86,"cw":95,"nz":97,
 };
 
 // Groups pre-sorted best to worst by FIFA ranking
