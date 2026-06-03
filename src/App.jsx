@@ -178,6 +178,7 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
   if(!results||!bracket) return {total:0};
   let total=0;
   const gP=bracket.group_picks||{},gR=results.group_results||{},wc=results.wildcard_codes||[];
+  const wcPicks=bracket.wildcard_picks||[];
   Object.keys(WC_GROUPS).forEach(g=>{
     const pred=gP[g]||[],act=gR[g]||[];
     if(!act.length) return;
@@ -185,17 +186,21 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
     pred.forEach((team,i)=>{
       const aIdx=act.findIndex(t=>t.code===team.code);
       if(i<=1){
-        // Only 1st and 2nd place picks earn group points
         if(aIdx===i){gPts+=scoring.exactPos;exact++;}
         else if(aIdx<=1) gPts+=scoring.advancedWrong;
+        else if(wc.includes(team.code)) gPts+=scoring.wildcardCorrect;
+      } else if(i===2&&!wcPicks.includes(pred[2]?.code)){
+        if(aIdx<=1) gPts+=scoring.wildcardCorrect;
       }
-      // 3rd place picks: +1 if team advances as wildcard — handled by wildcard_picks loop
-      // 4th place picks: no group points ever
     });
     if(exact===4) gPts+=scoring.perfectGroup;
     total+=gPts;
   });
-  (bracket.wildcard_picks||[]).forEach(code=>{if(wc.includes(code))total+=scoring.wildcardCorrect;});
+  wcPicks.forEach(code=>{
+    const advancedWildcard=wc.includes(code);
+    const advancedTop2=Object.values(gR).some(act=>act.slice(0,2).some(t=>t.code===code));
+    if(advancedWildcard||advancedTop2) total+=scoring.wildcardCorrect;
+  });
   const ko=bracket.knockout_picks||{},koR=results.knockout_results||{};
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{},pred=ko[round]||{};
@@ -715,7 +720,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt if your 1st or 2nd pick advances, +2 if they finish in the exact spot. +4 bonus if your whole top-2 is perfect. No points for 3rd/4th picks."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt for any team you predicted to advance that does advance (any route). +2 if exact position. +4 bonus if all 4 finish in exact order."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -734,8 +739,15 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
 function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking,setWildcardRanking,locked,onNext,onBack,results}){
   const[phase,setPhase]=useState("pick"); // "pick" | "rank"
   const thirds=Object.keys(WC_GROUPS).map(g=>({group:g,team:groupPicks[g][2]}));
+  const validThirdCodes=thirds.map(t=>t.team?.code).filter(Boolean);
   const actualWC=results?.wildcard_codes||[],hasActual=actualWC.length>0;
   const[swapSel,setSwapSel]=useState(null);
+
+  useEffect(()=>{
+    if(locked)return;
+    const stale=wildcardPicks.filter(code=>!validThirdCodes.includes(code));
+    if(stale.length>0) setWildcardPicks(prev=>prev.filter(code=>validThirdCodes.includes(code)));
+  },[validThirdCodes.join(",")]);
 
   const toggle=code=>{
     if(locked)return;
@@ -827,7 +839,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams that advance. +1 pt each correct."/>
+        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams to advance. +1 pt for each team that advances — even if they sneak through 1st or 2nd instead of as a wildcard."/>
         {!hasActual&&(
           <span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
             {wildcardPicks.length}/8{remaining>0?" - pick "+remaining+" more":" - complete!"}
@@ -1716,9 +1728,9 @@ function FaqCard(){
   const faqs=[
     {q:"How does group stage scoring work?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>Points are only awarded for your <strong style={{color:"#f1f5f9"}}>1st and 2nd place picks</strong>. No points for 3rd or 4th place predictions.</p>
+        <p style={{marginBottom:8}}>You earn +1 for any team you predicted to advance that actually advances — whether via your 1st/2nd picks or wildcard picks, and regardless of which route they took. +2 if exact position.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","Your 1st or 2nd pick advances (finishes top 2)"],["+2","Your pick finishes in the exact position (1st or 2nd) — includes the +1"],["+4 bonus","All 4 teams finish in the exact order you predicted (1st, 2nd, 3rd, and 4th)"],["+1","3rd place pick advances as a wildcard — scored via your wildcard selections"]].map(([pts,desc],i)=>(
+          {[["+1","Any team you predicted to advance actually advances — via top 2 or wildcard, either route counts"],["+2","Your 1st or 2nd pick finishes in the exact position you predicted (includes the +1)"],["+4 bonus","All 4 teams finish in the exact order you predicted"],["+1","Wildcard pick correct — selected team advances by any route"].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
@@ -1752,7 +1764,7 @@ function FaqCard(){
     )},
     {q:"What are wildcards and how are they scored?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>After the group stage the <strong style={{color:"#f1f5f9"}}>best 8 of 12 third-place teams</strong> advance. You pick which 8 — <strong style={{color:"#06b6d4"}}>+1 pt each correct</strong> (up to +8 pts).</p>
+        <p style={{marginBottom:8}}>After the group stage the <strong style={{color:"#f1f5f9"}}>best 8 of 12 third-place teams</strong> advance as wildcards. You pick which 8 — <strong style={{color:"#06b6d4"}}>+1 pt for each team that advances</strong> by any route. If your wildcard pick finishes 1st or 2nd instead, you still score. If your 1st/2nd group pick advances as a wildcard, you get +1 via your wildcard selection — as long as you predicted the team would advance, you’re rewarded.</p>
         <p style={{marginBottom:8}}>You also <strong style={{color:"#f1f5f9"}}>rank your wildcards 1–8</strong>. Your #1 seed faces the toughest group winner, #8 gets the easiest — real FIFA seeding. Ranking affects bracket matchups, not wildcard points.</p>
         <div style={{background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}><strong style={{color:"#f59e0b"}}>Tip:</strong> Up to +8 free points just from wildcards. Pick carefully.</div>
       </div>
