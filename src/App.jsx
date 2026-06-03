@@ -78,7 +78,7 @@ const getVenue=(m)=>{
   return MATCH_VENUES[key]||MATCH_VENUES[key2]||null;
 };
 
-const DEFAULT_SCORING = {exactPos:2,advancedWrong:1,wildcardCorrect:1,perfectGroup:4,r32:2,r16:4,qf:8,sf:10,third:12,champion:15};
+const DEFAULT_SCORING = {exactPos:2,advancedWrong:1,wildcardCorrect:1,perfectGroup:4,r32:2,r16:4,qf:8,sf:10,third:12,champion:20};
 const MAX_POSSIBLE = 368;
 const ROUNDS = [
   {id:"r32",label:"R32",fullLabel:"Round of 32",n:16,pts:2},
@@ -720,7 +720,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt for any team you predicted to advance that does advance (any route). +2 if exact position. +4 bonus if all 4 finish in exact order."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt if a team you picked to advance does advance. +1 more (total +2) if exact position. +4 bonus if all 4 finish in exact order. Group and wildcard advance points don't stack."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -841,7 +841,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams to advance. +1 pt for each team that advances — even if they sneak through 1st or 2nd instead of as a wildcard."/>
+        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams to advance as wildcards. +1 pt per correct pick. Same +1 as your group advance point — doesn’t stack. Max +1 per team for advancing."/>
         {!hasActual&&(
           <span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
             {wildcardPicks.length}/8{remaining>0?" - pick "+remaining+" more":" - complete!"}
@@ -1415,7 +1415,7 @@ function BracketViewer({bracket,results,onClose}){
             <Flag code={champ.code} size={52}/>
             <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:2,margin:"10px 0 6px"}}>{champ.name}</div>
             <FifaRank code={champ.code}/>
-            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! +15 pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
+            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! 🏆 +20 pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
             {bracket.champion_goal_diff_pick!=null&&(
               <div style={{marginTop:10,padding:8,background:C.card2,borderRadius:8}}>
                 <div style={{color:C.muted,fontSize:11,fontFamily:"'Barlow',sans-serif"}}>Tiebreaker: <strong style={{color:C.accent}}>{bracket.champion_goal_diff_pick>0?"+":""}{bracket.champion_goal_diff_pick}</strong> goal diff</div>
@@ -1730,24 +1730,25 @@ function FaqCard(){
   const faqs=[
     {q:"How does group stage scoring work?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>You earn +1 for any team you predicted to advance that actually advances — whether via your 1st/2nd picks or wildcard picks, and regardless of which route they took. +2 if exact position.</p>
+        <p style={{marginBottom:8}}>You earn <strong style={{color:"#f1f5f9"}}>+1</strong> if a team you predicted to advance actually advances, and <strong style={{color:"#f1f5f9"}}>+1 more</strong> (total +2) if they land in the exact position you picked. The advance +1 from your group picks and the +1 from your wildcard picks are the <strong style={{color:"#f59e0b"}}>same point — they never stack</strong>. Max +1 per team for advancing.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","Any team you predicted to advance actually advances — via top 2 or wildcard, either route counts"],["+2","Your 1st or 2nd pick finishes in the exact position you predicted (includes the +1)"],["+4 bonus","All 4 teams finish in the exact order you predicted"],["+1","Wildcard pick correct — selected team advances by any route"]].map(([pts,desc],i)=>(
+          {[["+1","A team you picked to advance (1st/2nd pick or wildcard pick) actually advances"],["+1 more","They finish in the exact position you picked (1st or 2nd) — total of +2, not on top of the advance point"],["+4 bonus","All 4 teams in the group finish in the exact order you predicted"],["⚠️ no stack","Group advance +1 and wildcard +1 are the same point. Max +1 per team for advancing, never +2"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
         <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px"}}>
           <div style={{color:"#f1f5f9",fontWeight:600,marginBottom:4}}>Example — Group A</div>
-          <div style={{marginBottom:2}}>You picked: Mexico 1st, S.Korea 2nd, Czechia 3rd, S.Africa 4th</div>
-          <div style={{marginBottom:6}}>Actual: Mexico 1st, S.Africa 2nd, Czechia 3rd, S.Korea 4th</div>
+          <div style={{marginBottom:2}}>Your picks: Mexico 1st, S.Korea 2nd | Wildcard pick: Czechia</div>
+          <div style={{marginBottom:6}}>Actual: Mexico 1st, S.Africa 2nd, Czechia 3rd (advances as wildcard), S.Korea 4th</div>
           <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"3px 10px",fontSize:11}}>
-            <span style={{color:"#22C55E"}}>+2</span><span>Mexico — picked 1st, finished 1st ✓ exact</span>
-            <span style={{color:"#64748b"}}>+0</span><span>S.Korea — picked 2nd, finished 4th (didn’t advance) ✗</span>
-            <span style={{color:"#64748b"}}>+0</span><span>Czechia — picked 3rd, no group pts (3rd/4th picks never score)</span>
-            <span style={{color:"#64748b"}}>+0</span><span>S.Africa — picked 4th, no group pts</span>
-            <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 2 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group</span>
+            <span style={{color:"#22C55E"}}>+1</span><span>Mexico — picked 1st, advanced ✓</span>
+            <span style={{color:"#22C55E"}}>+1 more</span><span>Mexico — finished exactly 1st ✓ (total +2)</span>
+            <span style={{color:"#ef4444"}}>+0</span><span>S.Korea — picked 2nd, finished 4th, didn’t advance ✗</span>
+            <span style={{color:"#22C55E"}}>+1</span><span>Czechia — wildcard pick correct, advances as wildcard ✓</span>
+            <span style={{color:"#f59e0b"}}>+0 extra</span><span>Czechia was also your 3rd group pick — points don’t stack, still just +1</span>
+            <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 3 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group (2 Mexico exact + 1 Czechia wildcard)</span>
           </div>
-          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Best case:</strong> You predict all 4 teams in the exact finishing order — +2 (1st exact) + +2 (2nd exact) + +4 perfect bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong> for one group. All 4 must be exact, not just the top 2.</div>
+          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Perfect group:</strong> All 4 finish in your exact order — +1+1 (1st) + +1+1 (2nd) + +4 bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong>. All 4 positions must be exact for the bonus.</div>
         </div>
       </div>
     )},
@@ -1755,7 +1756,7 @@ function FaqCard(){
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
         <p style={{marginBottom:8}}>You earn points if your picked team <strong style={{color:"#f1f5f9"}}>wins that round</strong> — the opponent doesn’t matter. Your bracket is built from your own group picks, so matchups may differ from reality. That’s fine: as long as the team wins their round, you score.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+2","Round of 32"],["+4","Round of 16"],["+8","Quarterfinal"],["+10","Semifinal"],["+12","3rd place"],["+15","Champion"]].map(([pts,desc],i)=>(
+          {[["+2","Round of 32"],["+4","Round of 16"],["+8","Quarterfinal"],["+10","Semifinal"],["+12","3rd place"],["+20","Champion"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
