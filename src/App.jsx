@@ -1722,6 +1722,7 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
                   </div>
                 </div>
                 <span style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15,textAlign:"right"}}>{tournamentStarted?b.score:"---"}</span>
+                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.max:"---"}</span>
                 <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
               </div>
               {canView&&<div style={{marginTop:6,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
@@ -1744,13 +1745,13 @@ function FaqCard(){
   const faqs=[
     {q:"How does group stage scoring work?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>You earn <strong style={{color:"#f1f5f9"}}>+1</strong> if a team you predicted to advance actually advances, and <strong style={{color:"#f1f5f9"}}>+1 more</strong> (total +2) if they land in the exact position you picked. The advance +1 from your group picks and the +1 from your wildcard picks are the <strong style={{color:"#f59e0b"}}>same point — they never stack</strong>. Max +1 per team for advancing.</p>
+        <p style={{marginBottom:8}}>You earn <strong style={{color:"#f1f5f9"}}>+1</strong> if a team you predicted to advance actually advances, and <strong style={{color:"#f1f5f9"}}>+1 more</strong> (total +2) if they land in the exact position you picked. The advance +1 from group picks and the +1 from wildcard picks are the same point — they never stack. Max +1 per team for advancing.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
           {[["+1","A team you picked to advance (1st/2nd pick or wildcard pick) actually advances"],["+1 more","They finish in the exact position you picked (1st or 2nd) — total of +2, not added on top"],["+4 bonus","All 4 teams in the group finish in the exact order you predicted"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
-        <p style={{fontSize:11,color:"#64748b",marginBottom:8,fontStyle:"italic"}}>⚠️ The advance +1 from group picks and the +1 from wildcard picks are the same point — they never stack. Max +1 per team for advancing.</p>
+        <p style={{fontSize:11,color:"#64748b",marginBottom:8}}>Note: the group advance +1 and wildcard +1 are the same point and never stack. Max +1 per team for advancing.</p>
         <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px"}}>
           <div style={{color:"#f1f5f9",fontWeight:600,marginBottom:4}}>Example — Group A</div>
           <div style={{marginBottom:2}}>Your picks: Mexico 1st, S.Korea 2nd | Wildcard pick: Czechia</div>
@@ -1880,7 +1881,7 @@ function MatchesPage({matches,loading}){
           {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
           <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>{showScore?status:toET(m.utcDate)}</span>
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0}}>
-            {getVenue(m)?("📍 "+getVenue(m)):m.group||""}
+            {m.group||""}
           </span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
