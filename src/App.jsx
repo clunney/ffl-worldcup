@@ -52,7 +52,7 @@ const NAME_TO_CODE = {
   "Portugal":"pt","Belgium":"be","Croatia":"hr","England":"gb-eng",
   "Scotland":"gb-sct","Switzerland":"ch","Austria":"at","Sweden":"se",
   "Norway":"no","Denmark":"dk","Poland":"pl","Czech Republic":"cz",
-  "Czechia":"cz","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba",
+  "Czechia":"cz","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba",
   "Serbia":"rs","Ukraine":"ua","Turkey":"tr","Turkiye":"tr",
   "Romania":"ro","Hungary":"hu","Slovakia":"sk","Slovenia":"si",
   "Albania":"al","North Macedonia":"mk","Finland":"fi","Ireland":"ie",
@@ -61,7 +61,7 @@ const NAME_TO_CODE = {
   "Morocco":"ma","Senegal":"sn","Egypt":"eg","Nigeria":"ng",
   "Ghana":"gh","Ivory Coast":"ci","Cote d Ivoire":"ci","Cote d'Ivoire":"ci",
   "Cameroon":"cm","Tunisia":"tn","Algeria":"dz","South Africa":"za",
-  "Cape Verde":"cv","DR Congo":"cd","Congo DR":"cd","Congo":"cd",
+  "Cape Verde":"cv","Cape Verde Islands":"cv","DR Congo":"cd","Congo DR":"cd","Congo":"cd",
   "Democratic Republic of Congo":"cd","Mali":"ml","Zambia":"zm",
   // Asia & Oceania
   "Japan":"jp","South Korea":"kr","Korea Republic":"kr","Australia":"au",
@@ -868,7 +868,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +3 exact, +1 if they advance, +6 perfect group bonus."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +2 exact, +1 if they advance, +4 perfect group bonus."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -1495,7 +1495,7 @@ function BracketViewer({bracket,results,onClose}){
                 </div>
               );
             })}
-            {perfect&&<div style={{color:C.green,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:5,textAlign:"center"}}>+6 perfect bonus!</div>}
+            {perfect&&<div style={{color:C.green,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:5,textAlign:"center"}}>+4 perfect bonus!</div>}
           </div>
         );
       })}
