@@ -184,9 +184,13 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
     let gPts=0,exact=0;
     pred.forEach((team,i)=>{
       const aIdx=act.findIndex(t=>t.code===team.code);
-      if(aIdx===i){gPts+=scoring.exactPos;exact++;}
-      else if(aIdx<=1) gPts+=scoring.advancedWrong;
-      else if(wc.includes(team.code)&&aIdx===2) gPts+=scoring.wildcardCorrect;
+      if(i<=1){
+        // Only 1st and 2nd place picks earn group points
+        if(aIdx===i){gPts+=scoring.exactPos;exact++;}
+        else if(aIdx<=1) gPts+=scoring.advancedWrong;
+      }
+      // 3rd place picks: +1 if team advances as wildcard — handled by wildcard_picks loop
+      // 4th place picks: no group points ever
     });
     if(exact===4) gPts+=scoring.perfectGroup;
     total+=gPts;
@@ -711,7 +715,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +2 pts for exact position (+1 for advancing, +1 more for exact), +4 bonus for perfect group."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt if your 1st or 2nd pick advances, +2 if they finish in the exact spot. +4 bonus if your whole top-2 is perfect. No points for 3rd/4th picks."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -1315,7 +1319,7 @@ function BracketViewer({bracket,results,onClose}){
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
       {Object.keys(WC_GROUPS).map(g=>{
         const picks=gp[g]||WC_GROUPS[g],actual=gResults[g]||[];
-        const gPts=picks.reduce((acc,team,i)=>{const aIdx=actual.findIndex(t=>t.code===team.code);if(aIdx===i)return acc+scoring.exactPos;if(aIdx<=1)return acc+scoring.advancedWrong;return acc;},0);
+        const gPts=picks.reduce((acc,team,i)=>{if(i>1)return acc;const aIdx=actual.findIndex(t=>t.code===team.code);if(aIdx===i)return acc+scoring.exactPos;if(aIdx<=1)return acc+scoring.advancedWrong;return acc;},0);
         const perfect=actual.length>0&&picks.every((t,i)=>actual[i]?.code===t.code);
         return(
           <div key={g} style={{background:C.card2,borderRadius:8,padding:10,border:"1px solid "+C.borderAccent}}>
@@ -1328,7 +1332,7 @@ function BracketViewer({bracket,results,onClose}){
             </div>
             {picks.map((team,i)=>{
               const aIdx=actual.findIndex(t=>t.code===team.code);
-              const pts=actual.length===0?null:aIdx===i?scoring.exactPos:aIdx<=1?scoring.advancedWrong:0;
+              const pts=actual.length===0?null:(i>1?0:aIdx===i?scoring.exactPos:aIdx<=1?scoring.advancedWrong:0);
               return(
                 <div key={team.code} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 0",borderBottom:i<3?"0.5px solid "+C.border:"none"}}>
                   <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9,width:22}}>{"1st,2nd,3rd,4th".split(",")[i]}</span>
@@ -1380,7 +1384,7 @@ function BracketViewer({bracket,results,onClose}){
           ))}
         </div>
         <div style={{marginTop:12,background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif"}}>
-          Points are awarded for each correct advancement pick independently - even if earlier rounds in this bracket were wrong.
+          Points are awarded if your picked team wins that round — the opponent doesn't matter. Your bracket is built from your own picks, so as long as a team wins their round, you earn points regardless of who they faced.
         </div>
       </div>
     );
@@ -1712,36 +1716,37 @@ function FaqCard(){
   const faqs=[
     {q:"How does group stage scoring work?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>For each team in each group:</p>
+        <p style={{marginBottom:8}}>Points are only awarded for your <strong style={{color:"#f1f5f9"}}>1st and 2nd place picks</strong>. No points for 3rd or 4th place predictions.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
-          {[["+1","Team finishes top 2 (advances)"],["+2","Team finishes in exact position you picked (includes the +1)"],["+4 bonus","You nail ALL 4 teams in exact order — perfect group"],["+1","Each wildcard pick that actually advances (scored separately)"]].map(([pts,desc],i)=>(
+          {[["+1","Your 1st or 2nd pick advances (finishes top 2)"],["+2","Your pick finishes in the exact position (1st or 2nd) — includes the +1"],["+4 bonus","Both your 1st AND 2nd pick land in the exact right position"],["+1","3rd place pick advances as a wildcard — scored via your wildcard selections"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
         <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px"}}>
           <div style={{color:"#f1f5f9",fontWeight:600,marginBottom:4}}>Example — Group A</div>
           <div style={{marginBottom:2}}>You picked: Mexico 1st, S.Korea 2nd, Czechia 3rd, S.Africa 4th</div>
-          <div style={{marginBottom:6}}>Actual result: Mexico 1st, S.Africa 2nd, Czechia 3rd, S.Korea 4th</div>
+          <div style={{marginBottom:6}}>Actual: Mexico 1st, S.Africa 2nd, Czechia 3rd, S.Korea 4th</div>
           <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"3px 10px",fontSize:11}}>
-            <span style={{color:"#22C55E"}}>+2</span><span>Mexico — exact ✓</span>
-            <span style={{color:"#ef4444"}}>+0</span><span>S.Korea — didn’t advance ✗</span>
-            <span style={{color:"#f59e0b"}}>+1</span><span>Czechia — advanced, wrong position</span>
-            <span style={{color:"#f59e0b"}}>+1</span><span>S.Africa — advanced, wrong position</span>
-            <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 4 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group</span>
+            <span style={{color:"#22C55E"}}>+2</span><span>Mexico — picked 1st, finished 1st ✓ exact</span>
+            <span style={{color:"#64748b"}}>+0</span><span>S.Korea — picked 2nd, finished 4th (didn’t advance) ✗</span>
+            <span style={{color:"#64748b"}}>+0</span><span>Czechia — picked 3rd, no group pts (3rd/4th picks never score)</span>
+            <span style={{color:"#64748b"}}>+0</span><span>S.Africa — picked 4th, no group pts</span>
+            <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 2 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group</span>
           </div>
+          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Best case:</strong> You pick Brazil 1st, Morocco 2nd — both finish in exactly those spots. +2 (Brazil exact) + +2 (Morocco exact) + +4 perfect bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong> for one group.</div>
         </div>
       </div>
     )},
     {q:"How does knockout scoring work?",a:(
       <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
-        <p style={{marginBottom:8}}>You pick a winner for each match. Points awarded <strong style={{color:"#f1f5f9"}}>per round independently</strong> — you score if a team wins their round even if you had them losing the next one.</p>
+        <p style={{marginBottom:8}}>You earn points if your picked team <strong style={{color:"#f1f5f9"}}>wins that round</strong> — the opponent doesn’t matter. Your bracket is built from your own group picks, so matchups may differ from reality. That’s fine: as long as the team wins their round, you score.</p>
         <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
           {[["+2","Round of 32"],["+4","Round of 16"],["+8","Quarterfinal"],["+10","Semifinal"],["+12","3rd place"],["+15","Champion"]].map(([pts,desc],i)=>(
             <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
           ))}
         </div>
         <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}>
-          <strong style={{color:"#f1f5f9"}}>Example:</strong> You picked France to win R32, R16, QF but lose in the SF. If France wins R32+R16 but loses in QF, you still get +2 and +4. Every round is independent.
+          <strong style={{color:"#f1f5f9"}}>Example:</strong> You picked France to win the QF. In reality France faces Spain instead of who you had them playing. Doesn’t matter — if France wins the QF, you get +8. Opponent is irrelevant.
         </div>
       </div>
     )},
