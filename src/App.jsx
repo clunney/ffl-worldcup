@@ -72,7 +72,7 @@ const NAME_TO_CODE = {
   "United States":"us","USA":"us","United States of America":"us",
   "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
   // Other
-  "Curacao":"cw","Curacao variant":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
+  "Curacao":"cw","Cura\u00e7ao":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
   "Cote d Ivoire 2":"ci","Cote dIvoire":"ci","Korea DPR":"kp","North Korea":"kp",
   "Burkina Faso":"bf","Tanzania":"tz","Zimbabwe":"zw",
   "El Salvador":"sv","Guatemala":"gt","Nicaragua":"ni",
@@ -87,8 +87,8 @@ const MAX_POSSIBLE = 295;
 const ROUNDS = [
   {id:"r32",label:"R32",fullLabel:"Round of 32",n:16,pts:2},
   {id:"r16",label:"R16",fullLabel:"Round of 16",n:8,pts:4},
-  {id:"qf",label:"QF",fullLabel:"Quarterfinals",n:4,pts:9},
-  {id:"sf",label:"SF",fullLabel:"Semifinals",n:2,pts:13},
+  {id:"qf",label:"QF",fullLabel:"Quarterfinals",n:4,pts:8},
+  {id:"sf",label:"SF",fullLabel:"Semifinals",n:2,pts:10},
 ];
 const STAGE_TO_ROUND = {LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final"};
 
@@ -873,7 +873,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group, best to worst. +1 if a team advances, +2 if in your exact spot. +4 bonus for perfect group. See FAQ below."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams. +1 if a team you picked 1st or 2nd advances (top-2 or wildcard). +2 if exact position. +4 perfect group bonus. Pre-sorted by FIFA ranking."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -1131,7 +1131,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
           {chalkPct>0&&<div style={{background:"rgba(6,182,212,.1)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"3px 10px",display:"flex",gap:4,alignItems:"center"}}><span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>Chalk</span><span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{chalkPct}%</span></div>}
         </div>
         {tabBar}
-        {activeRound!=="final"&&<p style={{color:C.muted,fontSize:12,fontFamily:"'Barlow',sans-serif",paddingBottom:10}}>{picked}/{currentRound.n} picked - +{currentRound.pts} pts per correct advance - opponent does not matter</p>}
+        {activeRound!=="final"&&<p style={{color:C.muted,fontSize:12,fontFamily:"'Barlow',sans-serif",paddingBottom:10}}>{picked}/{currentRound.n} picked - <strong style={{color:C.accent}}>+{currentRound.pts} pts</strong> per correct advance (opponent doesn't matter)</p>}
       </div>
 
       {pointsNote}
