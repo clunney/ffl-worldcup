@@ -73,6 +73,10 @@ const NAME_TO_CODE = {
   "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
   // Other
   "Curacao":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
+  "Cote d Ivoire 2":"ci","Cote dIvoire":"ci","Korea DPR":"kp","North Korea":"kp",
+  "Burkina Faso":"bf","Cameroon":"cm","Tanzania":"tz","Zambia":"zm","Zimbabwe":"zw",
+  "Trinidad and Tobago":"tt","El Salvador":"sv","Guatemala":"gt","Nicaragua":"ni",
+  "Cuba":"cu","Jamaica":"jm","Barbados":"bb","Antigua and Barbuda":"ag",
 };
 
 
@@ -285,7 +289,8 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
       const aIdx=act.findIndex(t=>t.code===team.code);
       if(aIdx===i){gPts+=scoring.exactPos;exact++;}
       else if(aIdx<=1) gPts+=scoring.advancedWrong;
-      // Note: 3rd-place wildcard points are ONLY from wildcard_picks, not here
+      // If you picked top-2 but they advanced as a wildcard: still +1
+      else if(aIdx===2&&wc.includes(team.code)&&i<=1) gPts+=scoring.advancedWrong;
     });
     if(exact===4) gPts+=scoring.perfectGroup;
     total+=gPts;
@@ -868,7 +873,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +3 exact, +1 if they advance, +6 perfect group bonus."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group, best to worst. +1 if a team advances, +2 if in your exact spot. +4 bonus for perfect group. See FAQ below."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -938,7 +943,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
     return(
       <div style={{paddingBottom:90}}>
         <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-          <SecHead label="RANK YOUR WILDCARDS" sub="Drag or use arrows to rank best to worst. Ranking #1 plays the toughest opponent; #8 gets the easiest - same as real WC seeding."/>
+          <SecHead label="RANK YOUR WILDCARDS" sub="Rank your 8 wildcards 1-8. #1 gets the hardest bracket draw, #8 the easiest - same as real WC seeding rules."/>
           <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",marginBottom:8}}>
             <div style={{color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Pre-sorted by FIFA ranking. Drag the handle dots or use arrows to adjust.</div>
           </div>
@@ -989,7 +994,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams that advance. +2 pts each correct."/>
+        <SecHead label="WILDCARD PICKS" sub="+1 pt for each correct pick. Separate from group points - no stacking. Rank them next to set bracket seeding."/>
         {!hasActual&&(
           <span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
             {wildcardPicks.length}/8{remaining>0?" - pick "+remaining+" more":" - complete!"}
@@ -1015,7 +1020,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
                 <div style={{color:C.text,fontSize:13,fontFamily:"'Barlow',sans-serif",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>{team.name}<FifaRank code={team.code}/></div>
                 <div style={{color:C.muted,fontSize:11,fontFamily:"'Barlow',sans-serif"}}>3rd - Group {group}</div>
               </div>
-              {hasActual&&sel&&<PtsTag pts={correct?2:0} pending={false}/>}
+              {hasActual&&sel&&<PtsTag pts={correct?1:0} pending={false}/>}
             </button>
           );
         })}
@@ -1116,6 +1121,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
           <button key={r.id} onClick={()=>unlocked&&changeRound(r.id)}
             style={{flexShrink:0,padding:"6px 14px",background:activeRound===r.id?C.accent:unlocked?C.card:C.card2,color:activeRound===r.id?"#0a0e1a":unlocked?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,letterSpacing:.5,border:"1px solid "+(complete?C.green+"55":activeRound===r.id?C.accent:C.border),borderRadius:20,cursor:unlocked?"pointer":"not-allowed",whiteSpace:"nowrap"}}>
             {complete?"Done ":""}{r.label}
+            {r.pts&&!complete&&<span style={{fontSize:9,opacity:.65,marginLeft:3}}>{"+"+r.pts}</span>}
           </button>
         );
       })}
@@ -1130,7 +1136,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
           {chalkPct>0&&<div style={{background:"rgba(6,182,212,.1)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"3px 10px",display:"flex",gap:4,alignItems:"center"}}><span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10}}>Chalk</span><span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{chalkPct}%</span></div>}
         </div>
         {tabBar}
-        {activeRound!=="final"&&<p style={{color:C.muted,fontSize:12,fontFamily:"'Barlow',sans-serif",paddingBottom:10}}>{picked}/{currentRound.n} picked - tap a team to advance them</p>}
+        {activeRound!=="final"&&<p style={{color:C.muted,fontSize:12,fontFamily:"'Barlow',sans-serif",paddingBottom:10}}>{picked}/{currentRound.n} picked - +{currentRound.pts} pts per correct advance - opponent does not matter</p>}
       </div>
 
       {pointsNote}
@@ -1903,41 +1909,108 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
 function FaqCard(){
   const[open,setOpen]=useState(null);
   const toggle=i=>setOpen(prev=>prev===i?null:i);
+
+  const Pill=({text,color})=>(
+    <span style={{display:"inline-block",background:color+"22",color:color,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"2px 8px",borderRadius:10,marginRight:4,letterSpacing:.5}}>{text}</span>
+  );
+  const Row=({pts,desc,sub,color=C.accent})=>(
+    <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:6}}>
+      <span style={{background:color+"22",color:color,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,minWidth:32,textAlign:"center",borderRadius:6,padding:"2px 4px",flexShrink:0}}>{pts}</span>
+      <div>
+        <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,fontWeight:600}}>{desc}</span>
+        {sub&&<span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}> - {sub}</span>}
+      </div>
+    </div>
+  );
+
   const faqs=[
-    ["How does group stage scoring work?",
-     "For each group, you earn +1 if a team you picked to advance (finish 1st or 2nd) actually does advance. You earn +2 if they finish in your exact predicted position. If all four teams finish in exactly your predicted order, you earn a +4 perfect group bonus on top. Example: you pick Mexico 1st, South Korea 2nd, Czechia 3rd, South Africa 4th. Mexico finishes 1st (+2), South Korea finishes 1st instead (+0 since they didn't advance in your predicted slot - wait, they did advance but wrong position = +1). Short version: +2 exact, +1 advanced wrong spot, +4 perfect group bonus."],
-    ["How does knockout scoring work?",
-     "For each knockout round, you earn points if a team you picked to advance actually advances in real life - the opponent doesn't matter. Your bracket matchups are based on your own group picks, so they may differ from real life. If Brazil wins their Round of 32 match in reality, you score +2 for any pick of Brazil to advance from R32. Each round is fully independent."],
-    ["What are wildcards and how are they scored?",
-     "After each group concludes, the best 8 of 12 third-place teams advance as wildcards. You pick which 8 you think will advance and rank them 1-8 (ranking affects bracket seeding). You earn +1 for each correct pick. This is separate from group stage scoring - no stacking."],
-    ["What do MAX and PROJ mean?",
-     "MAX is the most points you could still finish with - your current score plus full points for every remaining pick if they all come true. PROJ is a projection based on the odds favorites winning every remaining undecided match."],
-    ["What is the tiebreaker?",
-     "If two or more entries finish with the same total score, the tiebreaker is your predicted goal differential for the champion across all their matches (goals scored minus goals conceded). Closest guess wins."],
-    ["When do picks lock?",
-     "All picks lock automatically when the first match of the tournament kicks off on June 11, 2026. After that, no edits are possible and everyone's picks become visible to the pool."],
-    ["How do scores update?",
-     "Scores update automatically every 60 seconds as matches complete. No manual entry needed - results are derived live from the official match feed."],
+    ["Group Stage Scoring",<div>
+      <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginBottom:10,lineHeight:1.6}}>
+        For each team you rank in a group, points are based on whether they advance and how accurately you predicted their finish.
+      </div>
+      <Row pts="+1" desc="Team advances" sub="you picked them 1st or 2nd, they finish in the top 2 (or as a wildcard)"/>
+      <Row pts="+2" desc="Exact position" sub="you picked them 1st and they finish 1st, OR 2nd and they finish 2nd (includes the +1)"/>
+      <Row pts="+4" desc="Perfect group bonus" color={C.amber} sub="all 4 teams in exact predicted order"/>
+      <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"10px 12px",marginTop:8}}>
+        <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:.5,marginBottom:6}}>EXAMPLE - GROUP I</div>
+        <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.8}}>
+          You predict: <strong style={{color:C.text}}>France 1st, Senegal 2nd, Norway 3rd, Iraq 4th</strong><br/>
+          Actual result: <strong style={{color:C.text}}>France 1st, Norway 2nd, Senegal 3rd, Iraq 4th</strong><br/>
+          France exact 1st <Pill text="+2" color={C.green}/> Senegal advanced wrong spot <Pill text="+1" color={C.amber}/> Norway advanced wrong spot <Pill text="+1" color={C.amber}/> Iraq correct 4th (did not advance) <Pill text="+0" color={C.muted}/><br/>
+          <strong style={{color:C.text}}>Total: +4 pts</strong>
+        </div>
+      </div>
+      <div style={{marginTop:8,padding:"8px 10px",background:"rgba(245,158,11,.08)",borderRadius:8,fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
+        <strong style={{color:C.amber}}>Tip:</strong> If you pick a team for 3rd (wildcard slot) and they finish 1st or 2nd, you still earn +1 for their advancement. The reverse is also true - pick a team 1st and they sneak through as a wildcard: still +1.
+      </div>
+    </div>],
+    ["Wildcard Picks",<div>
+      <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginBottom:10,lineHeight:1.6}}>
+        After all groups finish, the best 8 of 12 third-place teams advance as wildcards. You pick which 8 and rank them - ranking affects their bracket seeding.
+      </div>
+      <Row pts="+1" desc="Correct wildcard pick" sub="one of your 8 selections actually qualifies"/>
+      <div style={{background:"rgba(255,255,255,.04)",borderRadius:8,padding:"8px 10px",marginTop:4}}>
+        <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.5}}>
+          Wildcard points are <strong style={{color:C.text}}>separate from group stage points</strong>. Picking a team 3rd in the group and then selecting them as a wildcard earns you +1 total (from wildcard picks) - not +2.
+        </div>
+      </div>
+    </div>],
+    ["Knockout Round Scoring",<div>
+      <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginBottom:10,lineHeight:1.6}}>
+        For every round, you earn points if a team you picked to advance actually advances in real life. <strong style={{color:C.text}}>The opponent doesn't matter</strong> - only whether your picked team won.
+      </div>
+      <Row pts="+2" desc="Round of 32 advance" color={C.accent}/>
+      <Row pts="+4" desc="Round of 16 advance" color={C.accent}/>
+      <Row pts="+8" desc="Quarterfinal advance" color={C.accent}/>
+      <Row pts="+10" desc="Semifinal advance" color={C.accent}/>
+      <Row pts="+12" desc="3rd place correct" color={C.amber}/>
+      <Row pts="+15" desc="Champion correct" color={"#f59e0b"}/>
+      <div style={{marginTop:8,padding:"8px 10px",background:"rgba(6,182,212,.07)",borderRadius:8,fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
+        <strong style={{color:C.accent}}>Each round is independent.</strong> Being wrong in an earlier round never costs you points in a later round. If you picked Brazil to reach the Final and they do, you earn R32 + R16 + QF + SF points automatically.
+      </div>
+    </div>],
+    ["MAX and PROJ columns",<div>
+      <Row pts="MAX" desc="Maximum possible score" color={C.amber} sub="your current score + full points for every remaining pick if they all come true"/>
+      <Row pts="PROJ" desc="Projected score" color={C.green} sub="based on odds favorites winning every remaining undecided match"/>
+      <div style={{marginTop:6,color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.5}}>
+        MAX goes down as matches are decided (wrong picks are locked in as 0). PROJ updates as odds shift.
+      </div>
+    </div>],
+    ["Tiebreaker",<div>
+      <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.6}}>
+        If two or more entries finish with the same total score, the tiebreaker is your <strong style={{color:C.text}}>predicted goal differential</strong> for the champion across all their tournament matches (goals scored minus goals conceded). Closest guess wins.
+      </div>
+    </div>],
+    ["When do picks lock and scores update?",<div>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:8}}>
+        <span style={{fontSize:16,flexShrink:0}}>🔒</span>
+        <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.6}}>Picks lock automatically the moment the <strong>first match kicks off on June 11, 2026</strong>. No edits after that - and everyone's picks become visible to the pool.</span>
+      </div>
+      <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+        <span style={{fontSize:16,flexShrink:0}}>⚡</span>
+        <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.6}}>Scores <strong>update automatically every 60 seconds</strong> as matches complete. No manual entry needed.</span>
+      </div>
+    </div>],
   ];
   return(
-    <div style={{background:C.card,borderRadius:12,padding:"12px 14px",border:"1px solid "+C.border,marginBottom:12}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>SCORING FAQ</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["+1/+2 Groups","+1 WC","+2-20 KO"].map(l=>(
-            <span key={l} style={{background:"rgba(6,182,212,.1)",color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:10,padding:"2px 8px",borderRadius:10}}>{l}</span>
+    <div style={{background:C.card,borderRadius:12,border:"1px solid "+C.border,marginBottom:12,overflow:"hidden"}}>
+      <div style={{padding:"12px 14px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>SCORING GUIDE & FAQ</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          {[["+1/+2","Groups",C.accent],["+1","Wildcards",C.accent],["+2 to +15","Knockout",C.amber]].map(([pts,label,color])=>(
+            <span key={label} style={{background:color+"15",color:color,fontFamily:"'Barlow',sans-serif",fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10}}>{pts} {label}</span>
           ))}
         </div>
       </div>
-      {faqs.map(([q,a],i)=>(
-        <div key={i} style={{borderTop:"0.5px solid "+C.border,paddingTop:8,marginTop:8}}>
-          <button onClick={()=>toggle(i)} style={{background:"transparent",border:"none",width:"100%",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:0}}>
-            <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{q}</span>
-            <span style={{color:C.accent,fontSize:16,flexShrink:0,fontWeight:300}}>{open===i?"-":"+"}</span>
+      {faqs.map(([q,body],i)=>(
+        <div key={i} style={{borderBottom:i<faqs.length-1?"0.5px solid "+C.border:"none"}}>
+          <button onClick={()=>toggle(i)} style={{background:open===i?"rgba(6,182,212,.05)":"transparent",border:"none",width:"100%",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"12px 14px"}}>
+            <span style={{color:open===i?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{q}</span>
+            <span style={{color:C.accent,fontSize:18,flexShrink:0,lineHeight:1,fontWeight:300}}>{open===i?"-":"+"}</span>
           </button>
           {open===i&&(
-            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.65,marginTop:6,paddingRight:8}}>
-              {a}
+            <div style={{padding:"0 14px 14px"}}>
+              {body}
             </div>
           )}
         </div>
