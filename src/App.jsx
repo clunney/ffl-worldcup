@@ -1901,7 +1901,7 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
 
 // ---- FAQ / Scoring Guide Card ----
 function FaqCard(){
-  const[open,setOpen]=React.useState(null);
+  const[open,setOpen]=useState(null);
   const toggle=i=>setOpen(prev=>prev===i?null:i);
   const faqs=[
     ["How does group stage scoring work?",
