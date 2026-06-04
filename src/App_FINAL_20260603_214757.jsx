@@ -1,20 +1,19 @@
 // App.jsx - World Cup Challenge 2026 - v3
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { supabase } from "./supabase";
 
 const ADMIN_EMAIL = "clunney22@gmail.com";
 const RESULTS_ROW = "00000000-0000-0000-0000-000000000001";
 const KICKOFF     = new Date("2026-06-11T18:00:00Z");
 
-// FIFA Rankings - Official April 1, 2026 release (most recent pre-tournament)
-// Source: FIFA.com / Wikipedia. Next update: June 9, 2026
+// FIFA Rankings (approximate current)
 const FIFA_RANKINGS = {
   "fr":1,"es":2,"ar":3,"gb-eng":4,"pt":5,"br":6,"nl":7,"ma":8,"be":9,"de":10,
-  "hr":11,"co":13,"sn":14,"mx":15,"us":16,"uy":17,"jp":18,"ch":19,
-  "ir":21,"au":23,"kr":24,"at":25,"no":27,"tn":30,"se":31,
-  "eg":33,"dz":35,"cz":36,"gb-sct":39,"ec":40,"ca":41,
-  "qa":42,"tr":47,"ci":48,"pa":49,"py":52,"cd":53,"ba":55,"sa":56,
-  "cv":60,"gh":63,"za":67,"iq":70,"jo":78,"uz":82,"ht":86,"cw":95,"nz":97,
+  "hr":11,"co":13,"sn":14,"mx":15,"us":16,"uy":17,"jp":18,"ch":19,"ir":21,
+  "au":23,"kr":24,"at":25,"no":27,"tn":30,"se":31,"eg":33,"dz":35,"cz":36,
+  "gb-sct":39,"ec":40,"ca":41,"qa":42,"tr":47,"ci":48,"pa":49,"py":52,
+  "cd":53,"ba":55,"sa":56,"cv":60,"gh":63,"za":67,"iq":70,"jo":78,
+  "uz":82,"ht":86,"cw":95,"nz":97,
 };
 
 // Groups pre-sorted best to worst by FIFA ranking
@@ -41,45 +40,46 @@ const normName = n => (n||"").toLowerCase()
   .replace("congo dr","dr congo").replace("curacao","curacao");
 
 const NAME_TO_CODE = {
-  // Mexico, Central America
-  "Mexico":"mx","Panama":"pa","Costa Rica":"cr","Honduras":"hn",
-  // South America
-  "Brazil":"br","Argentina":"ar","Colombia":"co","Uruguay":"uy",
-  "Ecuador":"ec","Paraguay":"py","Chile":"cl","Peru":"pe",
-  "Venezuela":"ve","Bolivia":"bo",
-  // Europe
-  "France":"fr","Spain":"es","Germany":"de","Netherlands":"nl",
-  "Portugal":"pt","Belgium":"be","Croatia":"hr","England":"gb-eng",
-  "Scotland":"gb-sct","Switzerland":"ch","Austria":"at","Sweden":"se",
-  "Norway":"no","Denmark":"dk","Poland":"pl","Czech Republic":"cz",
-  "Czechia":"cz","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba",
-  "Serbia":"rs","Ukraine":"ua","Turkey":"tr","Turkiye":"tr",
-  "Romania":"ro","Hungary":"hu","Slovakia":"sk","Slovenia":"si",
-  "Albania":"al","North Macedonia":"mk","Finland":"fi","Ireland":"ie",
-  "Wales":"gb-wls","Northern Ireland":"gb-nir","Georgia":"ge",
-  // Africa
-  "Morocco":"ma","Senegal":"sn","Egypt":"eg","Nigeria":"ng",
-  "Ghana":"gh","Ivory Coast":"ci","Cote d Ivoire":"ci","Cote d'Ivoire":"ci",
-  "Cameroon":"cm","Tunisia":"tn","Algeria":"dz","South Africa":"za",
-  "Cape Verde":"cv","DR Congo":"cd","Congo DR":"cd","Congo":"cd",
-  "Democratic Republic of Congo":"cd","Mali":"ml","Zambia":"zm",
-  // Asia & Oceania
-  "Japan":"jp","South Korea":"kr","Korea Republic":"kr","Australia":"au",
-  "Iran":"ir","IR Iran":"ir","Saudi Arabia":"sa","Qatar":"qa",
-  "Iraq":"iq","Jordan":"jo","Uzbekistan":"uz","New Zealand":"nz",
-  "Syria":"sy","UAE":"ae","United Arab Emirates":"ae",
-  // North America
-  "United States":"us","USA":"us","United States of America":"us",
-  "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
-  // Other
-  "Curacao":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
+  "Mexico":"mx","South Africa":"za","Korea Republic":"kr","South Korea":"kr",
+  "Czechia":"cz","Czech Republic":"cz","Canada":"ca","Switzerland":"ch",
+  "Qatar":"qa","Bosnia and Herzegovina":"ba","Bosnia & Herz.":"ba","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba",
+  "Brazil":"br","Morocco":"ma","Haiti":"ht","Scotland":"gb-sct",
+  "United States":"us","USA":"us","Paraguay":"py","Australia":"au",
+  "Turkiye":"tr","Turkey":"tr","Germany":"de","Curacao":"cw",
+  "Ivory Coast":"ci","Cote d Ivoire":"ci","Ecuador":"ec",
+  "Netherlands":"nl","Japan":"jp","Sweden":"se","Tunisia":"tn",
+  "Belgium":"be","Egypt":"eg","Iran":"ir","IR Iran":"ir","New Zealand":"nz",
+  "Spain":"es","Cape Verde":"cv","Cape Verde Islands":"cv","Saudi Arabia":"sa","Uruguay":"uy",
+  "France":"fr","Senegal":"sn","Norway":"no","Iraq":"iq",
+  "Argentina":"ar","Algeria":"dz","Austria":"at","Jordan":"jo",
+  "Portugal":"pt","Congo DR":"cd","DR Congo":"cd","Uzbekistan":"uz",
+  "Colombia":"co","England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa",
 };
 
+// Official 2026 WC venue map - fallback if API doesn't return venue
+const MATCH_VENUES = {
+  "Mexico-South Africa":"Estadio Azteca, Mexico City",
+  "South Korea-Czechia":"Estadio Guadalajara",
+  "Canada-Bosnia & Herz.":"BMO Field, Toronto",
+  "USA-Paraguay":"SoFi Stadium, Los Angeles",
+  "Brazil-Morocco":"AT&T Stadium, Arlington",
+  "Netherlands-Japan":"Lumen Field, Seattle",
+  "Belgium-Iran":"BC Place, Vancouver",
+  "Spain-Uruguay":"Hard Rock Stadium, Miami",
+  "France-Senegal":"MetLife Stadium, East Rutherford",
+  "Argentina-Austria":"Rose Bowl, Pasadena",
+  "Portugal-Colombia":"Levi's Stadium, Santa Clara",
+  "England-Croatia":"Mercedes-Benz Stadium, Atlanta",
+};
+const getVenue=(m)=>{
+  if(m.venue) return m.venue;
+  const key=m.homeTeam?.name+"-"+m.awayTeam?.name;
+  const key2=m.awayTeam?.name+"-"+m.homeTeam?.name;
+  return MATCH_VENUES[key]||MATCH_VENUES[key2]||null;
+};
 
-// Scoring: group +1 advance, +1 exact position, +4 perfect bonus, wildcard +1
-// Knockout: R32+2, R16+4, QF+8, SF+10, 3rd place+12, Champion+15
 const DEFAULT_SCORING = {exactPos:2,advancedWrong:1,wildcardCorrect:1,perfectGroup:4,r32:2,r16:4,qf:8,sf:10,third:12,champion:20};
-const MAX_POSSIBLE = 295;
+const MAX_POSSIBLE = 368;
 const ROUNDS = [
   {id:"r32",label:"R32",fullLabel:"Round of 32",n:16,pts:2},
   {id:"r16",label:"R16",fullLabel:"Round of 16",n:8,pts:4},
@@ -174,105 +174,6 @@ const buildR32 = (gp, wp, wcRanking) => {
   ];
 };
 
-// -- Auto-derive actual_results from live match data --
-// This runs on the frontend from the /api/matches data.
-// No admin manual entry needed for routine results.
-const NAME_TO_CODE_NORM = Object.entries(NAME_TO_CODE).reduce((acc,[k,v])=>{acc[k.toLowerCase()]=v;return acc;},{});
-function codeFromApiName(name){return NAME_TO_CODE[name]||NAME_TO_CODE_NORM[(name||"").toLowerCase()]||null;}
-function teamObj(apiTeam){const code=codeFromApiName(apiTeam?.name);return code?{code,name:ALL_TEAMS.find(t=>t.code===code)?.name||apiTeam.name}:null;}
-
-function deriveResultsFromMatches(matches){
-  if(!matches||!matches.length) return null;
-  const finished=matches.filter(m=>m.status==="FINISHED");
-  if(!finished.length) return null;
-
-  // -- Group stage standings --
-  const groupPts={},groupGD={},groupGF={},groupWins={};
-  const groupResults={};
-  const wcCandidates={};  // track 3rd-place teams
-  const wildcardCodes=[];
-
-  Object.keys(WC_GROUPS).forEach(g=>{
-    WC_GROUPS[g].forEach(t=>{groupPts[t.code]=0;groupGD[t.code]=0;groupGF[t.code]=0;groupWins[t.code]=0;});
-  });
-
-  finished.filter(m=>m.stage==="GROUP_STAGE").forEach(m=>{
-    const hc=codeFromApiName(m.homeTeam?.name),ac=codeFromApiName(m.awayTeam?.name);
-    if(!hc||!ac) return;
-    const hs=m.score?.fullTime?.home??0,as=m.score?.fullTime?.away??0;
-    groupGF[hc]=(groupGF[hc]||0)+hs;groupGF[ac]=(groupGF[ac]||0)+as;
-    groupGD[hc]=(groupGD[hc]||0)+(hs-as);groupGD[ac]=(groupGD[ac]||0)+(as-hs);
-    if(hs>as){groupPts[hc]=(groupPts[hc]||0)+3;groupWins[hc]=(groupWins[hc]||0)+1;}
-    else if(as>hs){groupPts[ac]=(groupPts[ac]||0)+3;groupWins[ac]=(groupWins[ac]||0)+1;}
-    else{groupPts[hc]=(groupPts[hc]||0)+1;groupPts[ac]=(groupPts[ac]||0)+1;}
-  });
-
-  // Determine if all group matches finished to rank each group
-  Object.entries(WC_GROUPS).forEach(([g,teams])=>{
-    const gFinished=finished.filter(m=>m.stage==="GROUP_STAGE"&&teams.some(t=>codeFromApiName(m.homeTeam?.name)===t.code||codeFromApiName(m.awayTeam?.name)===t.code));
-    if(gFinished.length<3) return; // need all 3 matchdays to finalize
-    const ranked=[...teams].sort((a,b)=>(groupPts[b.code]||0)-(groupPts[a.code]||0)||((groupGD[b.code]||0)-(groupGD[a.code]||0))||((groupGF[b.code]||0)-(groupGF[a.code]||0)));
-    groupResults[g]=ranked;
-    wcCandidates[g]={...ranked[2],pts:groupPts[ranked[2]?.code]||0,gd:groupGD[ranked[2]?.code]||0,gf:groupGF[ranked[2]?.code]||0};
-  });
-
-  // Best 8 third-place teams = wildcards
-  const thirds=Object.values(wcCandidates).filter(Boolean).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.gf-a.gf);
-  const wcTeams=thirds.slice(0,8);
-  wcTeams.forEach(t=>{if(t?.code)wildcardCodes.push(t.code);});
-
-  // -- Knockout results --
-  const knockoutResults={};
-  const stageMap={LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final","3RD_PLACE_MATCH":"thirdPlace"};
-
-  finished.filter(m=>m.stage&&stageMap[m.stage]).forEach(m=>{
-    const round=stageMap[m.stage];
-    const hs=m.score?.fullTime?.home??0,as=m.score?.fullTime?.away??0;
-    const winnerTeam=hs>=as?m.homeTeam:m.awayTeam; // on pens too, score.penalties decides but fullTime=0-0
-    // Check penalties
-    let winner=winnerTeam;
-    if(m.score?.penalties?.home!=null){
-      winner=m.score.penalties.home>m.score.penalties.away?m.homeTeam:m.awayTeam;
-    }
-    const wObj=teamObj(winner);if(!wObj)return;
-
-    if(round==="thirdPlace"){
-      knockoutResults.thirdPlace=wObj;
-    } else if(round==="final"){
-      knockoutResults.champion=wObj;
-      // Track both finalists
-      const loser=winner===m.homeTeam?m.awayTeam:m.homeTeam;
-      const lObj=teamObj(loser);
-      knockoutResults.finalists=[wObj,...(lObj?[lObj]:[])];
-    } else {
-      if(!knockoutResults[round]) knockoutResults[round]={};
-      const idx=Object.keys(knockoutResults[round]).length;
-      knockoutResults[round][idx]=wObj;
-    }
-  });
-
-  return {
-    group_results:groupResults,
-    wildcard_codes:wildcardCodes,
-    knockout_results:knockoutResults,
-    _derived:true,
-  };
-}
-
-// Merge stored actual_results with live-derived results
-// Live-derived wins for group/knockout data; stored wins for flags (locked, visible, goal_diff)
-function mergeResults(stored,derived){
-  if(!stored&&!derived) return null;
-  if(!derived) return stored;
-  if(!stored) return derived;
-  return {
-    ...stored,
-    group_results:Object.keys(derived.group_results||{}).length>0?derived.group_results:(stored.group_results||{}),
-    wildcard_codes:derived.wildcard_codes?.length>0?derived.wildcard_codes:(stored.wildcard_codes||[]),
-    knockout_results:Object.keys(derived.knockout_results||{}).length>0?derived.knockout_results:(stored.knockout_results||{}),
-  };
-}
-
 function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
   if(!results||!bracket) return {total:0};
   let total=0;
@@ -281,31 +182,49 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
     const pred=gP[g]||[],act=gR[g]||[];
     if(!act.length) return;
     let gPts=0,exact=0;
+    const wcPg=bracket?.wildcard_picks||[];
     pred.forEach((team,i)=>{
       const aIdx=act.findIndex(t=>t.code===team.code);
-      if(aIdx===i){gPts+=scoring.exactPos;exact++;}
-      else if(aIdx<=1) gPts+=scoring.advancedWrong;
-      // Note: 3rd-place wildcard points are ONLY from wildcard_picks, not here
+      if(i<=1){
+        if(aIdx===i){gPts+=scoring.exactPos;exact++;}
+        else if(aIdx<=1) gPts+=scoring.advancedWrong;
+        else if(wc.includes(team.code)) gPts+=scoring.wildcardCorrect;
+      } else if(i===2&&!wcPg.includes(pred[2]?.code)){
+        if(aIdx<=1) gPts+=scoring.wildcardCorrect;
+      }
     });
     if(exact===4) gPts+=scoring.perfectGroup;
     total+=gPts;
   });
-  (bracket.wildcard_picks||[]).forEach(code=>{if(wc.includes(code))total+=scoring.wildcardCorrect;});
+  (bracket.wildcard_picks||[]).forEach(code=>{
+    const advWC=wc.includes(code);
+    const advTop2=Object.values(gR).some(act=>act.slice(0,2).some(t=>t.code===code));
+    if(advWC||advTop2) total+=scoring.wildcardCorrect;
+  });
   const ko=bracket.knockout_picks||{},koR=results.knockout_results||{};
-  // Team-based scoring: did the team you picked to advance actually advance?
-  // The actual opponent doesn't matter - only whether your picked team won their round.
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{},pred=ko[round]||{};
-    const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
-    Object.values(pred).forEach(pick=>{
-      if(pick?.code&&actualAdvancers.has(pick.code)) total+=scoring[round];
-    });
+    Object.keys(act).forEach(idx=>{if(pred[+idx]?.code===act[idx]?.code)total+=scoring[round];});
   });
   if(ko.thirdPlace?.code&&koR.thirdPlace?.code===ko.thirdPlace.code) total+=scoring.third;
   if(ko.champion?.code&&koR.champion?.code===ko.champion.code) total+=scoring.champion;
   return {total};
 }
 
+function calculateMax(bracket,results,scoring=DEFAULT_SCORING){
+  const current=calculateScore(bracket,results,scoring).total;
+  if(!results)return current;
+  const koR=results.knockout_results||{};
+  let remaining=0;
+  const rs={r32:16,r16:8,qf:4,sf:2};
+  ["r32","r16","qf","sf"].forEach(round=>{
+    const act=koR[round]||{},pred=bracket.knockout_picks?.[round]||{};
+    for(let i=0;i<rs[round];i++){if(!act[i]&&pred[i])remaining+=scoring[round];}
+  });
+  if(!koR.thirdPlace&&bracket.knockout_picks?.thirdPlace)remaining+=scoring.third;
+  if(!koR.champion&&bracket.knockout_picks?.champion)remaining+=scoring.champion;
+  return current+remaining;
+}
 function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   const base=calculateScore(bracket,results,scoring).total;
   if(!bracket?.knockout_picks) return base;
@@ -317,32 +236,6 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   });
   if(!koR.champion&&ko.champion&&oddsMap[ko.champion.code]) proj+=scoring.champion;
   return proj;
-}
-
-function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
-  // Current score + points still earnable if all remaining picks are correct
-  const current=calculateScore(bracket,results,scoring).total;
-  const ko=bracket?.knockout_picks||{};
-  const koR=results?.knockout_results||{};
-  let extra=0;
-  // Team-based: for each pick, is this round still undecided?
-  // A round is "done" when the # of actual winners >= # of matches played
-  ["r32","r16","qf","sf"].forEach(round=>{
-    const act=koR[round]||{};
-    const pred=ko[round]||{};
-    const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
-    const predCodes=Object.values(pred).map(t=>t?.code).filter(Boolean);
-    const numDecided=actualAdvancers.size;
-    const numPicks=predCodes.length;
-    if(numDecided>=numPicks) return; // round fully decided, nothing more earnable
-    // Add pts for picks that haven't been decided yet (not yet winners or losers)
-    predCodes.forEach(code=>{
-      if(!actualAdvancers.has(code)) extra+=scoring[round]||0;
-    });
-  });
-  if(!koR.thirdPlace&&ko.thirdPlace) extra+=scoring.third||0;
-  if(!koR.champion&&ko.champion) extra+=scoring.champion||0;
-  return current+extra;
 }
 
 function getTeamsAlive(bracket,results){
@@ -560,9 +453,6 @@ function LoginScreen({joinPool}){
     if(mode==="signup"){
       const{error}=await supabase.auth.signUp({email,password,options:{data:{display_name:name}}});
       if(error)setError(error.message);else setSent(true);
-    }else if(mode==="forgot"){
-      const{error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+"?reset=1"});
-      if(error)setError(error.message);else setSent(true);
     }else{
       const{error}=await supabase.auth.signInWithPassword({email,password});
       if(error)setError(error.message);
@@ -583,11 +473,7 @@ function LoginScreen({joinPool}){
       {sent?(
         <div style={{background:C.card,borderRadius:14,padding:28,maxWidth:340,width:"100%",textAlign:"center",border:"1px solid "+C.borderAccent}}>
           <h3 style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,margin:"0 0 10px"}}>CHECK YOUR EMAIL</h3>
-          <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,lineHeight:1.6}}>
-            {mode==="forgot"?"Password reset link sent to":"Confirmation sent to"} <strong style={{color:C.text}}>{email}</strong>.
-          </p>
-          {mode==="forgot"&&<p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginTop:8,lineHeight:1.5}}>Click the link in your email to set a new password.</p>}
-          <button onClick={()=>{setSent(false);setMode("login");}} style={{...btn(false),marginTop:16,width:"100%",fontSize:13}}>BACK TO SIGN IN</button>
+          <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,lineHeight:1.6}}>Confirmation sent to <strong style={{color:C.text}}>{email}</strong>.</p>
         </div>
       ):(
         <div style={{background:C.card,borderRadius:14,padding:24,maxWidth:340,width:"100%",border:"1px solid "+C.borderAccent}}>
@@ -599,39 +485,20 @@ function LoginScreen({joinPool}){
             <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12}}>or email</span>
             <div style={{flex:1,height:1,background:C.border}}/>
           </div>
-          {mode!=="forgot"&&(
-            <div style={{display:"flex",marginBottom:16}}>
-              {["login","signup"].map(m=>(
-                <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:8,background:mode===m?C.accent:C.card2,color:mode===m?"#0a0e1a":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:.5,border:"1px solid "+C.borderAccent,borderRadius:m==="login"?"8px 0 0 8px":"0 8px 8px 0",cursor:"pointer"}}>
-                  {m==="login"?"SIGN IN":"CREATE ACCOUNT"}
-                </button>
-              ))}
-            </div>
-          )}
-          {mode==="forgot"&&(
-            <div style={{marginBottom:16}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:C.accent,letterSpacing:1,marginBottom:6}}>RESET PASSWORD</div>
-              <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12,lineHeight:1.5}}>Enter your email and we will send you a reset link.</p>
-            </div>
-          )}
+          <div style={{display:"flex",marginBottom:16}}>
+            {["login","signup"].map(m=>(
+              <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:8,background:mode===m?C.accent:C.card2,color:mode===m?"#0a0e1a":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:.5,border:"1px solid "+C.borderAccent,borderRadius:m==="login"?"8px 0 0 8px":"0 8px 8px 0",cursor:"pointer"}}>
+                {m==="login"?"SIGN IN":"CREATE ACCOUNT"}
+              </button>
+            ))}
+          </div>
           {mode==="signup"&&<input placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} style={inp}/>}
           <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} style={inp}/>
-          {mode!=="forgot"&&<input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmail()} style={{...inp,marginBottom:14}}/>}
-          {mode==="forgot"&&<div style={{height:4}}/>}
+          <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleEmail()} style={{...inp,marginBottom:14}}/>
           {error&&<p style={{color:C.red,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12}}>{error}</p>}
-          <button onClick={handleEmail} disabled={loading||!email||(mode!=="forgot"&&!password)||(mode==="signup"&&!name)} style={{...btn(true,loading||!email||(mode!=="forgot"&&!password)||(mode==="signup"&&!name)),width:"100%",marginBottom:10}}>
-            {loading?"...":(mode==="login"?"SIGN IN":mode==="signup"?"CREATE ACCOUNT":"SEND RESET LINK")}
+          <button onClick={handleEmail} disabled={loading||!email||!password||(mode==="signup"&&!name)} style={{...btn(true,loading||!email||!password||(mode==="signup"&&!name)),width:"100%"}}>
+            {loading?"...":mode==="login"?"SIGN IN":"CREATE ACCOUNT"}
           </button>
-          {mode==="login"&&(
-            <button onClick={()=>{setMode("forgot");setError("");setPassword("");}} style={{background:"transparent",border:"none",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,cursor:"pointer",width:"100%",textAlign:"center",textDecoration:"underline"}}>
-              Forgot password?
-            </button>
-          )}
-          {mode==="forgot"&&(
-            <button onClick={()=>{setMode("login");setError("");}} style={{background:"transparent",border:"none",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,cursor:"pointer",width:"100%",textAlign:"center",textDecoration:"underline"}}>
-              Back to sign in
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -726,8 +593,7 @@ function CreatePoolModal({userId,displayName,onCreated,onClose}){
     await supabase.from("pool_members").insert({pool_id:pool.id,user_id:userId,role:"manager"});
     await supabase.from("brackets").upsert({user_id:userId,pool_id:pool.id,display_name:displayName},{onConflict:"user_id,pool_id"});
     setSaving(false);
-    const msg="Hey! Join my World Cup 2026 bracket pool on WCC and make your picks before the first match on June 11! "+inviteUrl;
-    navigator.clipboard.writeText(msg).catch(()=>{});
+    navigator.clipboard.writeText(inviteUrl).catch(()=>{});
     onCreated(pool.id);
   };
   return(
@@ -868,7 +734,7 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. Pre-sorted by FIFA ranking (#). +3 exact, +1 if they advance, +6 perfect group bonus."/>
+        <SecHead label="GROUP STAGE PICKS" sub="Rank all 4 teams per group. +1 pt if a team you picked to advance does advance. +1 more (total +2) if exact position. +4 bonus if all 4 finish in exact order. Advance points don't stack."/>
         {!locked&&navBtn}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10,padding:12}}>
@@ -885,19 +751,19 @@ function GroupStagePage({groupPicks,setGroupPicks,locked,onNext,results}){
 
 // ---- Wildcard Page ----
 function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking,setWildcardRanking,locked,onNext,onBack,results}){
-  // Fix stale picks when user goes back and changes group stage
+  const[phase,setPhase]=useState("pick"); // "pick" | "rank"
   const thirds=Object.keys(WC_GROUPS).map(g=>({group:g,team:groupPicks[g][2]}));
   const validThirdCodes=thirds.map(t=>t.team?.code).filter(Boolean);
   const validThirdCodesKey=validThirdCodes.join(",");
+  const actualWC=results?.wildcard_codes||[],hasActual=actualWC.length>0;
+  const[swapSel,setSwapSel]=useState(null);
+
   useEffect(()=>{
     if(locked)return;
     const stale=wildcardPicks.filter(code=>!validThirdCodes.includes(code));
-    if(stale.length>0)setWildcardPicks(prev=>prev.filter(code=>validThirdCodes.includes(code)));
+    if(stale.length>0) setWildcardPicks(prev=>prev.filter(code=>validThirdCodes.includes(code)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[validThirdCodesKey]);
-  const[phase,setPhase]=useState("pick"); // "pick" | "rank"
-  const actualWC=results?.wildcard_codes||[],hasActual=actualWC.length>0;
-  const[swapSel,setSwapSel]=useState(null);
 
   const toggle=code=>{
     if(locked)return;
@@ -989,7 +855,7 @@ function WildcardPage({groupPicks,wildcardPicks,setWildcardPicks,wildcardRanking
   return(
     <div style={{paddingBottom:90}}>
       <div style={{padding:"14px 14px 10px",background:C.bg,position:"sticky",top:58,zIndex:9,borderBottom:"1px solid "+C.borderAccent}}>
-        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams that advance. +2 pts each correct."/>
+        <SecHead label="WILDCARD PICKS" sub="Pick 8 third-place teams to advance as wildcards. +1 pt per correct pick. Same point as group advance — doesn’t stack. Max +1 per team for advancing."/>
         {!hasActual&&(
           <span style={{background:remaining===0?C.green:C.accent,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"3px 12px",borderRadius:20}}>
             {wildcardPicks.length}/8{remaining>0?" - pick "+remaining+" more":" - complete!"}
@@ -1053,7 +919,7 @@ function MatchPickCard({num,team1,team2,winner,onPick,locked,actualWinner}){
       {actualWinner&&winner&&(
         <div style={{padding:"4px 12px"}}>
           {winner.code===actualWinner.code
-            ?<span style={{color:C.green,fontSize:10,fontFamily:"'Barlow',sans-serif"}}>Correct +2 pts</span>
+            ?<span style={{color:C.green,fontSize:10,fontFamily:"'Barlow',sans-serif"}}>Correct +1 pt</span>
             :<span style={{color:C.red,fontSize:10,fontFamily:"'Barlow',sans-serif"}}>{actualWinner.name} won</span>}
         </div>
       )}
@@ -1101,9 +967,8 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
   const chalkPct=useMemo(()=>calcChalkPct(knockoutPicks,r32Teams),[knockoutPicks,r32Teams]);
 
   const pointsNote=(
-    <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"10px 14px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.65}}>
-      <strong style={{color:C.accent,display:"block",marginBottom:5}}>How points work</strong>
-      You earn points if your picked team wins that round - the opponent doesn't matter. Your bracket uses your own group stage picks so matchups may differ from real life. If the team wins their round, you score. Each round is fully independent.
+    <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
+      <strong style={{color:C.accent}}>How points work:</strong> You earn points if your picked team wins that round — <strong style={{color:C.text}}>the opponent doesn’t matter</strong>. Your bracket uses your own picks so matchups may differ from real life. If the team wins their round, you score.
     </div>
   );
 
@@ -1135,30 +1000,16 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
 
       {pointsNote}
 
-      {activeRound!=="final"&&(()=>{
-        const roundComplete=picked>=currentRound.n;
-        const currentRoundIdx=ROUNDS.findIndex(r=>r.id===activeRound);
-        const nextRound=ROUNDS[currentRoundIdx+1]||{id:"final",label:"Final"};
-        return(
-          <>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,padding:"0 12px 12px"}}>
-              {Array.from({length:currentRound.n},(_,i)=>({idx:i,teams:getTeams(activeRound,i)})).map(({idx,teams:[t1,t2]})=>(
-                <MatchPickCard key={idx} num={idx+1} team1={t1} team2={t2}
-                  winner={knockoutPicks[activeRound]?.[idx]}
-                  actualWinner={koR[activeRound]?.[idx]||null}
-                  onPick={team=>pickWinner(activeRound,idx,team)} locked={locked}/>
-              ))}
-            </div>
-            {!locked&&roundComplete&&(
-              <div style={{padding:"0 12px 12px"}}>
-                <button onClick={()=>changeRound(nextRound.id)} style={{...btn(true),width:"100%",fontSize:15}}>
-                  NEXT: {nextRound.label.toUpperCase()} PICKS
-                </button>
-              </div>
-            )}
-          </>
-        );
-      })()}
+      {activeRound!=="final"&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:10,padding:"0 12px 12px"}}>
+          {Array.from({length:currentRound.n},(_,i)=>({idx:i,teams:getTeams(activeRound,i)})).map(({idx,teams:[t1,t2]})=>(
+            <MatchPickCard key={idx} num={idx+1} team1={t1} team2={t2}
+              winner={knockoutPicks[activeRound]?.[idx]}
+              actualWinner={koR[activeRound]?.[idx]||null}
+              onPick={team=>pickWinner(activeRound,idx,team)} locked={locked}/>
+          ))}
+        </div>
+      )}
 
       {activeRound==="final"&&(
         <div style={{padding:"0 12px 12px",display:"flex",flexDirection:"column",gap:12}}>
@@ -1206,20 +1057,38 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
             </Card>
           )}
 
-          {/* Submit button + completion summary */}
-          {knockoutPicks.champion&&championGoalDiff!=null&&!locked&&(
-            <button onClick={()=>{if(triggerSave)triggerSave();if(onSubmitBracket)onSubmitBracket();}}
-              style={{...btn(true),width:"100%",fontSize:17,padding:"16px",background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#0a0e1a",boxShadow:"0 0 20px rgba(245,158,11,.4)",marginBottom:4}}>
-              SUBMIT BRACKET
-            </button>
-          )}
           {knockoutPicks.champion&&championGoalDiff!=null&&(
-            <CompletionSummary knockoutPicks={knockoutPicks} groupPicks={{}} wildcardPicks={[]} r32Teams={r32Teams} chalkPct={chalkPct} allBrackets={allBrackets}/>
+            <>
+              {!locked&&(
+                <div style={{padding:"8px 0 4px"}}>
+                  <button onClick={()=>{triggerSave();onSubmitBracket&&onSubmitBracket();}}
+                    style={{width:"100%",padding:"16px",background:"linear-gradient(135deg,#06b6d4,#0891b2)",border:"none",borderRadius:12,color:"#0a0e1a",fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,cursor:"pointer",boxShadow:"0 0 24px rgba(6,182,212,.35)"}}>
+                    🏆 SUBMIT BRACKET
+                  </button>
+                  <p style={{color:"#64748b",fontFamily:"'Barlow',sans-serif",fontSize:11,textAlign:"center",marginTop:8}}>Your picks auto-save — takes you to your final bracket view</p>
+                </div>
+              )}
+              <CompletionSummary knockoutPicks={knockoutPicks} groupPicks={{}} wildcardPicks={[]} r32Teams={r32Teams} chalkPct={chalkPct} allBrackets={allBrackets}/>
+            </>
           )}
         </div>
       )}
 
-      {!locked&&<div style={{padding:"0 12px"}}><button onClick={onBack} style={{...btn(false),width:"100%"}}>BACK TO WILDCARDS</button></div>}
+      {!locked&&activeRound!=="final"&&(()=>{
+        const nrMap={r32:"r16",r16:"qf",qf:"sf",sf:"final"};
+        const nrLabel={r32:"Round of 16",r16:"Quarterfinals",qf:"Semifinals",sf:"Final"};
+        const curN=(ROUNDS.find(rr=>rr.id===activeRound)||{n:0}).n;
+        const curDone=Object.keys(knockoutPicks[activeRound]||{}).length>=curN;
+        const nId=nrMap[activeRound];
+        return curDone&&nId?(
+          <div style={{padding:"8px 12px 0"}}>
+            <button onClick={()=>changeRound(nId)} style={{...btn(true),width:"100%",fontSize:15,padding:"13px"}}>
+              NEXT: {nrLabel[activeRound]} →
+            </button>
+          </div>
+        ):null;
+      })()}
+      {!locked&&<div style={{padding:"4px 12px 0"}}><button onClick={onBack} style={{...btn(false),width:"100%"}}>BACK TO WILDCARDS</button></div>}
     </div>
   );
 }
@@ -1308,11 +1177,16 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:C.accent,letterSpacing:1.5}}>YOUR PICKS</div>
             <div style={{display:"flex",gap:6}}>
-            {!locked&&(
-              <button onClick={handleEditGroups} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>EDIT PICKS</button>
-            )}
-            {!locked&&(
-              <button onClick={onDeleteBracket} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>RESET</button>
+            {!locked?(
+              <>
+                <button onClick={handleEditGroups} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>EDIT PICKS</button>
+                <button onClick={onDeleteBracket} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,padding:"5px 12px",cursor:"pointer",letterSpacing:.5}}>RESET</button>
+              </>
+            ):(
+              <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(239,68,68,.1)",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,padding:"5px 10px"}}>
+                <span style={{fontSize:12}}>🔒</span>
+                <span style={{color:"#ef4444",fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:.5}}>PICKS LOCKED</span>
+              </div>
             )}
           </div>
           </div>
@@ -1469,7 +1343,7 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
       )}
       {step==="groups"&&<GroupStagePage groupPicks={groupPicks} setGroupPicks={setGroupPicks} locked={locked} onNext={()=>setStep("wildcards")} results={results}/>}
       {step==="wildcards"&&<WildcardPage groupPicks={groupPicks} wildcardPicks={wildcardPicks} setWildcardPicks={setWildcardPicks} wildcardRanking={wildcardRanking} setWildcardRanking={setWildcardRanking} locked={locked} onNext={()=>setStep("knockout")} onBack={()=>setStep("groups")} results={results}/>}
-      {step==="knockout"&&<KnockoutPage groupPicks={groupPicks} wildcardPicks={wildcardPicks} wildcardRanking={wildcardRanking} knockoutPicks={knockoutPicks} setKnockoutPicks={setKnockoutPicks} locked={locked} onBack={()=>setStep("wildcards")} results={results} championGoalDiff={championGoalDiff} setChampionGoalDiff={setChampionGoalDiff} triggerSave={triggerSave} allBrackets={allBrackets} onSubmitBracket={()=>setViewMode&&setViewMode("view")}/>}
+      {step==="knockout"&&<KnockoutPage groupPicks={groupPicks} wildcardPicks={wildcardPicks} wildcardRanking={wildcardRanking} knockoutPicks={knockoutPicks} setKnockoutPicks={setKnockoutPicks} locked={locked} onBack={()=>setStep("wildcards")} results={results} championGoalDiff={championGoalDiff} setChampionGoalDiff={setChampionGoalDiff} triggerSave={triggerSave} allBrackets={allBrackets} onSubmitBracket={()=>setViewMode("view")}/>}
     </div>
   );
 }
@@ -1551,7 +1425,7 @@ function BracketViewer({bracket,results,onClose}){
           ))}
         </div>
         <div style={{marginTop:12,background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif"}}>
-          Points are awarded if your picked team wins that round - opponent doesn't matter. Each round is independent.
+          Points are awarded if your picked team wins that round — opponent doesn’t matter. Each round is independent.
         </div>
       </div>
     );
@@ -1568,7 +1442,7 @@ function BracketViewer({bracket,results,onClose}){
             <Flag code={champ.code} size={52}/>
             <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:2,margin:"10px 0 6px"}}>{champ.name}</div>
             <FifaRank code={champ.code}/>
-            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! +20 pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
+            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! 🏆 +20 pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
             {bracket.champion_goal_diff_pick!=null&&(
               <div style={{marginTop:10,padding:8,background:C.card2,borderRadius:8}}>
                 <div style={{color:C.muted,fontSize:11,fontFamily:"'Barlow',sans-serif"}}>Tiebreaker: <strong style={{color:C.accent}}>{bracket.champion_goal_diff_pick>0?"+":""}{bracket.champion_goal_diff_pick}</strong> goal diff</div>
@@ -1789,12 +1663,9 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
   const[nameVal,setNameVal]=useState(bracketName);
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
-  const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
+  const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,max:calculateMax(b,results,scoring),proj:calculateProjected(b,results,oddsMap,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
   const myEntry=scored.find(b=>b.user_id===userId),myPos=myEntry?scored.indexOf(myEntry)+1:null;
-  const shareMyBracket=()=>{
-    navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId)
-      .then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
-  };
+  const shareMyBracket=()=>{navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
 
   const commitName=()=>{if(nameVal.trim()){saveName(nameVal.trim());setEditingName(false);}};
 
@@ -1825,53 +1696,32 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
             )}
           </div>
         )}
-        <div style={{display:"grid",gridTemplateColumns:globalPercentile!=null?"1fr 1fr 1fr 1fr 1fr":"1fr 1fr 1fr 1fr",gap:8,marginBottom:10}}>
-          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted?ordinal(myPos):"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>rank</div></div>
+        <div style={{display:"grid",gridTemplateColumns:globalPercentile!=null?"1fr 1fr 1fr 1fr":"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted?ordinal(myPos):"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>in pool</div></div>
           <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.score:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>pts</div></div>
-          <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.amber,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.maxPts:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>max</div></div>
           <div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.green,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{tournamentStarted&&myEntry?myEntry.proj:"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>proj</div></div>
           {globalPercentile!=null&&<div style={{background:C.card2,borderRadius:8,padding:"10px 6px",textAlign:"center"}}><div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:22,lineHeight:1}}>{globalPercentile}%</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginTop:3}}>global</div></div>}
         </div>
         {globalPercentile!=null&&tournamentStarted&&<div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,textAlign:"center",marginBottom:8}}>Top {globalPercentile}th percentile across all WCC pools</div>}
-        {!bracketComplete&&(
-          <div style={{padding:"8px 12px",background:"rgba(245,158,11,.08)",borderRadius:8,border:"1px solid rgba(245,158,11,.2)",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{color:C.amber,fontSize:13}}>!</span>
-            <span style={{color:C.amber,fontFamily:"'Barlow',sans-serif",fontSize:12,flex:1}}>Your bracket is incomplete - tap Picks to finish</span>
-          </div>
-        )}
-      </Card>
-      {!picksVisible&&(
-        <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:10,padding:"12px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:18}}>🔒</span>
-          <div>
-            <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1}}>PICKS LOCKED UNTIL KICKOFF</div>
-            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginTop:2}}>No one can see anyone else's picks until June 11. Make your picks in the Picks tab.</div>
-          </div>
+        <div style={{padding:"8px 12px",background:C.card2,borderRadius:8,display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13}}>{bracketComplete?"OK":"!"}</span>
+          <span style={{color:bracketComplete?C.text:C.amber,fontFamily:"'Barlow',sans-serif",fontSize:12,flex:1}}>{bracketComplete?bracketName+" - complete":"Your bracket is incomplete - tap Picks to finish"}</span>
         </div>
-      )}
+      </Card>
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>STANDINGS</div>
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{allBrackets.length} entries - {MAX_POSSIBLE} pts max</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 50px 46px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
-          {[["#",""],["BRACKET",""],["PTS","Current points"],["MAX","Points if all remaining picks correct"],["PROJ","Projected with odds favorites"]].map(([h,tip])=>(<span key={h} title={tip} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h!=="BRACKET"?"right":"left",cursor:tip?"help":"default"}}>{h}</span>))}
+        <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 46px 54px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
+          {["#","BRACKET","PTS","MAX","PROJ"].map(h=>(<span key={h} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h==="PTS"||h==="MAX"||h==="PROJ"?"right":"left"}}>{h}</span>))}
         </div>
-        {scored.length===0&&(
-          <div style={{padding:"24px",textAlign:"center"}}>
-            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,lineHeight:1.6}}>
-              {picksVisible
-                ?"No brackets submitted yet."
-                :"Picks are hidden until the first match kicks off on June 11. Check back then to see the full leaderboard!"
-              }
-            </div>
-          </div>
-        )}
+        {scored.length===0&&<div style={{padding:"20px",textAlign:"center",color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13}}>No brackets yet - be the first!</div>}
         {scored.map((b,i)=>{
           const isMe=b.user_id===userId,canView=picksVisible&&!isMe;
           return(
             <div key={b.id} style={{padding:"10px",borderBottom:i<scored.length-1?"1px solid "+C.border:"none",background:isMe?"rgba(6,182,212,.06)":"transparent",borderRadius:6}}>
-              <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 50px 46px",gap:6,alignItems:"center"}}>
+              <div style={{display:"grid",gridTemplateColumns:"26px 1fr 46px 46px 54px",gap:6,alignItems:"center"}}>
                 <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{i+1}</span>
                 <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default"}}>
                   <div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
@@ -1885,63 +1735,119 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
                   </div>
                 </div>
                 <span style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15,textAlign:"right"}}>{tournamentStarted?b.score:"---"}</span>
-                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.maxPts:"---"}</span>
-                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
+                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.max:"---"}</span>
+                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
               </div>
               {canView&&<div style={{marginTop:6,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
             </div>
           );
         })}
-
+        {!picksVisible&&<p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,textAlign:"center",marginTop:10,padding:"0 4px"}}>Picks are hidden until the first match kicks off on Jun 11</p>}
       </Card>
       <FaqCard/>
     </div>
   );
 }
 
-// ---- FAQ / Scoring Guide Card ----
+// ---- FAQ / Scoring Guide ----
 function FaqCard(){
   const[open,setOpen]=React.useState(null);
-  const toggle=i=>setOpen(prev=>prev===i?null:i);
+  const toggle=i=>setOpen(o=>o===i?null:i);
+  const T={fontFamily:"'Barlow',sans-serif"};
+  const B={fontFamily:"'Bebas Neue',sans-serif"};
   const faqs=[
-    ["How does group stage scoring work?",
-     "For each group, you earn +1 if a team you picked to advance (finish 1st or 2nd) actually does advance. You earn +2 if they finish in your exact predicted position. If all four teams finish in exactly your predicted order, you earn a +4 perfect group bonus on top. Example: you pick Mexico 1st, South Korea 2nd, Czechia 3rd, South Africa 4th. Mexico finishes 1st (+2), South Korea finishes 1st instead (+0 since they didn't advance in your predicted slot - wait, they did advance but wrong position = +1). Short version: +2 exact, +1 advanced wrong spot, +4 perfect group bonus."],
-    ["How does knockout scoring work?",
-     "For each knockout round, you earn points if a team you picked to advance actually advances in real life - the opponent doesn't matter. Your bracket matchups are based on your own group picks, so they may differ from real life. If Brazil wins their Round of 32 match in reality, you score +2 for any pick of Brazil to advance from R32. Each round is fully independent."],
-    ["What are wildcards and how are they scored?",
-     "After each group concludes, the best 8 of 12 third-place teams advance as wildcards. You pick which 8 you think will advance and rank them 1-8 (ranking affects bracket seeding). You earn +1 for each correct pick. This is separate from group stage scoring - no stacking."],
-    ["What do MAX and PROJ mean?",
-     "MAX is the most points you could still finish with - your current score plus full points for every remaining pick if they all come true. PROJ is a projection based on the odds favorites winning every remaining undecided match."],
-    ["What is the tiebreaker?",
-     "If two or more entries finish with the same total score, the tiebreaker is your predicted goal differential for the champion across all their matches (goals scored minus goals conceded). Closest guess wins."],
-    ["When do picks lock?",
-     "All picks lock automatically when the first match of the tournament kicks off on June 11, 2026. After that, no edits are possible and everyone's picks become visible to the pool."],
-    ["How do scores update?",
-     "Scores update automatically every 60 seconds as matches complete. No manual entry needed - results are derived live from the official match feed."],
+    {q:"How does group stage scoring work?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p style={{marginBottom:8}}>You earn <strong style={{color:"#f1f5f9"}}>+1</strong> if a team you predicted to advance actually advances, and <strong style={{color:"#f1f5f9"}}>+1 more</strong> (total +2) if they land in the exact position you picked. The advance +1 from group picks and the +1 from wildcard picks are the same point — they never stack. Max +1 per team for advancing.</p>
+        <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:8}}>
+          {[["+1","A team you picked to advance (1st/2nd pick or wildcard pick) actually advances"],["+1 more","They finish in the exact position you picked (1st or 2nd) — total of +2, not added on top"],["+4 bonus","All 4 teams in the group finish in the exact order you predicted"]].map(([pts,desc],i)=>(
+            <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
+          ))}
+        </div>
+        <p style={{fontSize:11,color:"#64748b",marginBottom:8}}>Note: the group advance +1 and wildcard +1 are the same point and never stack. Max +1 per team for advancing.</p>
+        <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px"}}>
+          <div style={{color:"#f1f5f9",fontWeight:600,marginBottom:4}}>Example — Group A</div>
+          <div style={{marginBottom:2}}>Your picks: Mexico 1st, S.Korea 2nd | Wildcard pick: Czechia</div>
+          <div style={{marginBottom:6}}>Actual: Mexico 1st, S.Africa 2nd, Czechia 3rd (advances as wildcard), S.Korea 4th</div>
+          <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"3px 10px",fontSize:11}}>
+            <span style={{color:"#22C55E"}}>+1</span><span>Mexico — picked 1st, advanced ✓</span>
+            <span style={{color:"#22C55E"}}>+1 more</span><span>Mexico — finished exactly 1st (total +2)</span>
+            <span style={{color:"#ef4444"}}>+0</span><span>S.Korea — picked 2nd, didn’t advance ✗</span>
+            <span style={{color:"#22C55E"}}>+1</span><span>Czechia — wildcard pick correct ✓</span>
+            <span style={{color:"#64748b"}}>+0 extra</span><span>Czechia was also 3rd pick — points don’t stack</span>
+            <span style={{color:"#06b6d4",borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3,fontWeight:700}}>= 3 pts</span><span style={{borderTop:"1px solid rgba(255,255,255,.08)",paddingTop:3}}>for this group</span>
+          </div>
+          <div style={{marginTop:8,fontSize:11,color:"#94a3b8"}}><strong style={{color:"#f1f5f9"}}>Perfect group:</strong> All 4 finish in exact order — +1+1 (1st) + +1+1 (2nd) + +4 bonus = <strong style={{color:"#06b6d4"}}>8 pts</strong>. All 4 must be exact for the bonus.</div>
+        </div>
+      </div>
+    )},
+    {q:"How does knockout scoring work?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p style={{marginBottom:8}}>You earn points if your picked team <strong style={{color:"#f1f5f9"}}>wins that round</strong> — the opponent doesn’t matter. Your bracket is built from your own group picks so matchups may differ from real life. If the team wins their round, you score.</p>
+        <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",marginBottom:10}}>
+          {[["+2","Round of 32"],["+4","Round of 16"],["+8","Quarterfinal"],["+10","Semifinal"],["+12","3rd place"],["+20","Champion"]].map(([pts,desc],i)=>(
+            <React.Fragment key={i}><span style={{color:"#06b6d4",...B,fontSize:14,textAlign:"right"}}>{pts}</span><span>{desc}</span></React.Fragment>
+          ))}
+        </div>
+        <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}>
+          <strong style={{color:"#f1f5f9"}}>Example:</strong> You picked France to win the QF. In reality France faces Spain instead of who you had them playing. Doesn’t matter — if France wins the QF, you get +8. Opponent is irrelevant.
+        </div>
+      </div>
+    )},
+    {q:"What are wildcards and how are they scored?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p style={{marginBottom:8}}>After the group stage the <strong style={{color:"#f1f5f9"}}>best 8 of 12 third-place teams</strong> advance as wildcards. You pick which 8 — <strong style={{color:"#06b6d4"}}>+1 pt for each team that advances</strong> by any route. If your wildcard pick finishes 1st or 2nd instead, you still score. If your 1st/2nd group pick ends up advancing as a wildcard, you get +1 via your wildcard selection.</p>
+        <p style={{marginBottom:8}}>You also <strong style={{color:"#f1f5f9"}}>rank your wildcards 1–8</strong>. Your #1 seed faces the toughest group winner, #8 gets the easiest — real FIFA seeding. Ranking affects bracket matchups, not wildcard points.</p>
+        <div style={{background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}><strong style={{color:"#f59e0b"}}>Tip:</strong> Up to +8 pts just from wildcards. Pick carefully.</div>
+      </div>
+    )},
+    {q:"What do MAX and PROJ mean on the leaderboard?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"8px 12px",marginBottom:10}}>
+          <span style={{color:"#f59e0b",...B,fontSize:13}}>MAX</span><span>Your ceiling — total points if every remaining pick is correct. Shows if you’re still mathematically in contention.</span>
+          <span style={{color:"#22C55E",...B,fontSize:13}}>PROJ</span><span>Projection assuming the odds favorite wins every undecided match. A realistic baseline, not a guarantee.</span>
+        </div>
+        <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}>Example: 24 pts now, MAX 180 (still in it), PROJ 41 (expected finish if favorites hold).</div>
+      </div>
+    )},
+    {q:"What is the tiebreaker?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p style={{marginBottom:8}}>If two people tie on points, the tiebreaker is your <strong style={{color:"#f1f5f9"}}>champion’s total goal differential</strong> across all their matches. Closest guess without going over wins.</p>
+        <div style={{background:"rgba(6,182,212,.08)",border:"1px solid rgba(6,182,212,.2)",borderRadius:8,padding:"8px 10px",fontSize:11}}>Example: you guessed +12, actual is +14 (off by 2). Opponent guessed +15 (over). You win.</div>
+      </div>
+    )},
+    {q:"When do picks lock?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p style={{marginBottom:8}}>Picks lock when the <strong style={{color:"#f1f5f9"}}>first match kicks off on June 11</strong>. No edits after that for anyone. Until then use <strong style={{color:"#06b6d4"}}>EDIT PICKS</strong> to change anything. Nobody sees each other’s picks until they lock.</p>
+      </div>
+    )},
+    {q:"How do scores update during the tournament?",a:(
+      <div style={{...T,fontSize:12,color:"#64748b",lineHeight:1.7}}>
+        <p>Everything updates <strong style={{color:"#f1f5f9"}}>automatically</strong> — no manual entry needed. Match results pull from live data every few minutes. Score, MAX, and PROJ all recalculate in real time.</p>
+      </div>
+    )},
   ];
   return(
-    <div style={{background:C.card,borderRadius:12,padding:"12px 14px",border:"1px solid "+C.border,marginBottom:12}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-        <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>SCORING FAQ</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          {["+1/+2 Groups","+1 WC","+2-20 KO"].map(l=>(
-            <span key={l} style={{background:"rgba(6,182,212,.1)",color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:10,padding:"2px 8px",borderRadius:10}}>{l}</span>
+    <div style={{background:"#111827",borderRadius:12,padding:16,border:"1px solid rgba(255,255,255,0.07)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div style={{...B,fontSize:14,color:"#06b6d4",letterSpacing:1}}>SCORING & FAQ</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(6,182,212,.07)",borderRadius:8,padding:"4px 10px"}}>
+          {[["+1/+2","Groups"],["+1","WC"],["+2–20","KO"]].map(([pts,lbl])=>(
+            <React.Fragment key={lbl}><span style={{color:"#06b6d4",...B,fontSize:12}}>{pts}</span><span style={{color:"#64748b",...T,fontSize:10,marginRight:4}}>{lbl}</span></React.Fragment>
           ))}
         </div>
       </div>
-      {faqs.map(([q,a],i)=>(
-        <div key={i} style={{borderTop:"0.5px solid "+C.border,paddingTop:8,marginTop:8}}>
-          <button onClick={()=>toggle(i)} style={{background:"transparent",border:"none",width:"100%",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:0}}>
-            <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{q}</span>
-            <span style={{color:C.accent,fontSize:16,flexShrink:0,fontWeight:300}}>{open===i?"-":"+"}</span>
-          </button>
-          {open===i&&(
-            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,lineHeight:1.65,marginTop:6,paddingRight:8}}>
-              {a}
-            </div>
-          )}
-        </div>
-      ))}
+      <div style={{display:"flex",flexDirection:"column",gap:2}}>
+        {faqs.map((f,i)=>(
+          <div key={i} style={{borderRadius:8,overflow:"hidden",border:"1px solid "+(open===i?"rgba(6,182,212,.4)":"rgba(255,255,255,0.07)")}}>
+            <button onClick={()=>toggle(i)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 14px",background:open===i?"rgba(6,182,212,.08)":"#0d1321",border:"none",cursor:"pointer",textAlign:"left",gap:8}}>
+              <span style={{color:open===i?"#06b6d4":"#f1f5f9",...T,fontSize:13,fontWeight:600,flex:1}}>{f.q}</span>
+              <span style={{color:"#64748b",fontSize:16,flexShrink:0,display:"inline-block",transform:open===i?"rotate(180deg)":"rotate(0deg)",transition:"transform .2s"}}>&#8964;</span>
+            </button>
+            {open===i&&<div style={{padding:"0 14px 14px",background:"rgba(6,182,212,.04)"}}>{f.a}</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1982,76 +1888,48 @@ function MatchesPage({matches,loading}){
     const isLive=["IN_PLAY","PAUSED","HALFTIME"].includes(m.status);
     const status=isLive?(m.status==="HALFTIME"?"HT":(m.minute||"")+"'"):"FT";
     const o=!showScore?getOdds(m.homeTeam?.name,m.awayTeam?.name):null;
-
-    // Shared team name style
-    const nameStyle={fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text};
-    const rankStyle={color:"#64748b",fontFamily:"'Barlow',sans-serif",fontSize:11,fontWeight:400};
-    const oddsStyle={fontFamily:"'Bebas Neue',sans-serif",fontSize:14,minWidth:44,textAlign:"center",borderRadius:5,padding:"3px 0"};
-
     return(
-      <div style={{padding:"10px 0",borderBottom:"1px solid "+C.border}}>
-        {/* Header: time + group */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:5}}>
-            {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0,animation:"livepulse 1s infinite"}}/>}
-            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>
-              {showScore?(isLive?"LIVE - "+status:"FT"):toET(m.utcDate)}
-            </span>
-          </div>
-          {m.group&&<span style={{background:"rgba(6,182,212,.12)",color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5,padding:"2px 9px",borderRadius:10}}>{m.group}</span>}
+      <div style={{padding:"12px 0",borderBottom:"1px solid "+C.border}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          {isLive&&<span style={{width:6,height:6,borderRadius:"50%",background:C.red,display:"inline-block",flexShrink:0}}/>}
+          <span style={{fontFamily:"'Barlow',sans-serif",fontSize:11,color:isLive?C.red:C.muted}}>{showScore?status:toET(m.utcDate)}</span>
+          <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:10,marginLeft:"auto",flexShrink:0}}>
+            {m.group||""}
+          </span>
         </div>
-
-        {/* Two-column layout: teams left, score/odds right */}
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {/* Teams column */}
-          <div style={{flex:1,minWidth:0}}>
-            {/* Home */}
-            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}>
-              <Flag code={hCode} size={22}/>
-              <span style={{...nameStyle,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {m.homeTeam?.name||"TBD"}
-              </span>
-              {hRank&&<span style={rankStyle}>{"#"+hRank}</span>}
-            </div>
-            {/* Away */}
-            <div style={{display:"flex",alignItems:"center",gap:7}}>
-              <Flag code={aCode} size={22}/>
-              <span style={{...nameStyle,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {m.awayTeam?.name||"TBD"}
-              </span>
-              {aRank&&<span style={rankStyle}>{"#"+aRank}</span>}
-            </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {hCode&&<Flag code={hCode} size={22}/>}
+          <div style={{display:"flex",alignItems:"center",gap:3,flex:1}}>
+            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text}}>{m.homeTeam?.name||"TBD"}</span>
+            {hRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+hRank}</span>}
           </div>
-
-          {/* Score or odds column - fixed width, right-aligned */}
           {showScore?(
-            <div style={{flexShrink:0,textAlign:"center",minWidth:60}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:C.text,lineHeight:1}}>
-                {m.score?.fullTime?.home??"-"}
-              </div>
-              <div style={{fontFamily:"'Barlow',sans-serif",fontSize:9,color:C.muted,margin:"2px 0"}}>
-                {isLive?status:"FT"}
-              </div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:C.text,lineHeight:1}}>
-                {m.score?.fullTime?.away??"-"}
-              </div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0,minWidth:60,justifyContent:"center"}}>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.home??"-"}</span>
+              <span style={{color:C.muted,fontSize:14}}>:</span>
+              <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,color:C.text,minWidth:18,textAlign:"center"}}>{m.score?.fullTime?.away??"-"}</span>
             </div>
           ):o?(
-            <div style={{flexShrink:0,textAlign:"center"}}>
-              <div style={{display:"flex",gap:4,justifyContent:"center",marginBottom:2}}>
-                <span style={{...oddsStyle,color:C.accent,background:"rgba(6,182,212,.08)"}}>{fmtOdds(o.home)||"---"}</span>
-                <span style={{...oddsStyle,color:C.muted,background:"rgba(255,255,255,.04)"}}>{o.draw?fmtOdds(o.draw):"---"}</span>
-                <span style={{...oddsStyle,color:C.accent,background:"rgba(6,182,212,.08)"}}>{fmtOdds(o.away)||"---"}</span>
+            <div style={{flexShrink:0,textAlign:"center",minWidth:110}}>
+              <div style={{display:"flex",gap:3,justifyContent:"center",marginBottom:2}}>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>HOME</span>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>DRAW</span>
+                <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:34,textAlign:"center"}}>AWAY</span>
               </div>
-              <div style={{display:"flex",gap:4,justifyContent:"center"}}>
-                {["HOME","DRAW","AWAY"].map(h=>(
-                  <span key={h} style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:8,width:44,textAlign:"center"}}>{h}</span>
-                ))}
+              <div style={{display:"flex",gap:3,justifyContent:"center"}}>
+                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.home)||"---"}</span>
+                <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(255,255,255,.04)",borderRadius:4,padding:"2px 0"}}>{o.draw?fmtOdds(o.draw):"---"}</span>
+                <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,width:34,textAlign:"center",background:"rgba(6,182,212,.08)",borderRadius:4,padding:"2px 0"}}>{fmtOdds(o.away)||"---"}</span>
               </div>
             </div>
           ):(
-            <div style={{flexShrink:0,color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,minWidth:30,textAlign:"center"}}>vs</div>
+            <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,flexShrink:0,minWidth:30,textAlign:"center"}}>vs</span>
           )}
+          <div style={{display:"flex",alignItems:"center",gap:3,flex:1,justifyContent:"flex-end"}}>
+            {aRank&&<span style={{color:"#475569",fontSize:9,fontFamily:"'Barlow',sans-serif"}}>{"#"+aRank}</span>}
+            <span style={{fontFamily:"'Barlow',sans-serif",fontSize:14,fontWeight:600,color:C.text}}>{m.awayTeam?.name||"TBD"}</span>
+          </div>
+          {aCode&&<Flag code={aCode} size={22}/>}
         </div>
       </div>
     );
@@ -2245,7 +2123,7 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
 }
 
 // ---- Pool Manager Panel ----
-function PoolManagerPanel({pool,allBrackets,results,onClose,userId,onPoolDeleted}){
+function PoolManagerPanel({pool,allBrackets,results,onClose,userId}){
   const[sc,setSc]=useState(pool.scoring_config||{...DEFAULT_SCORING});
   const[saving,setSaving]=useState(false),[ msg,setMsg]=useState("");
   const PtsIn=({label,field})=>(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid "+C.border}}><span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13}}>{label}</span><input type="number" value={sc[field]} onChange={e=>setSc(prev=>({...prev,[field]:+e.target.value}))} style={{width:52,padding:"4px 8px",background:C.card2,border:"1px solid "+C.borderAccent,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:16,textAlign:"center",outline:"none"}}/></div>);
@@ -2262,25 +2140,15 @@ function PoolManagerPanel({pool,allBrackets,results,onClose,userId,onPoolDeleted
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1,marginBottom:8}}>INVITE LINK</div>
           <div style={{color:C.accent,fontFamily:"'Barlow',sans-serif",fontSize:12,wordBreak:"break-all",marginBottom:6}}>{window.location.origin+"?join="+pool.code}</div>
           {pool.password&&<div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginBottom:8}}>Password: <strong style={{color:C.text}}>{pool.password}</strong></div>}
-          <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:10}}>
-          <button onClick={()=>{
-            const msg="Hey! I just filled out my World Cup 2026 bracket on WCC - you should join my pool and make your picks before the first match kicks off on June 11! "+window.location.origin+"?join="+pool.code;
-            navigator.clipboard.writeText(msg).then(()=>setMsg("Message copied!"));
-          }} style={{...btn(true),width:"100%"}}>COPY INVITE MESSAGE</button>
-          <button onClick={()=>{
-            navigator.clipboard.writeText(window.location.origin+"?join="+pool.code).then(()=>setMsg("Link copied!"));
-          }} style={{...btn(false),width:"100%",fontSize:13}}>COPY LINK ONLY</button>
-        </div>
+          <button onClick={()=>navigator.clipboard.writeText(window.location.origin+"?join="+pool.code).then(()=>setMsg("Copied!"))} style={{...btn(true),width:"100%",marginTop:10}}>COPY INVITE LINK</button>
         </Card>
         <Card>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:C.accent,letterSpacing:1}}>MEMBERS</div>
             <button onClick={async()=>{
-              if(!window.confirm("Delete this pool permanently? All brackets will be deleted. This cannot be undone."))return;
-              await supabase.from("brackets").delete().eq("pool_id",pool.id);
-              await supabase.from("pool_members").delete().eq("pool_id",pool.id);
+              if(!window.confirm("Delete this pool permanently? All brackets in this pool will also be deleted. This cannot be undone."))return;
               await supabase.from("pools").delete().eq("id",pool.id);
-              onClose();onPoolDeleted&&onPoolDeleted();
+              onClose();window.location.reload();
             }} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"4px 10px",cursor:"pointer",letterSpacing:.5}}>DELETE POOL</button>
           </div>
           {allBrackets.map(b=>(<div key={b.user_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid "+C.border}}><div style={{flex:1}}><div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600}}>{b.display_name||"---"}</div><div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{b.bracket_name}</div></div>{b.user_id!==userId&&<button onClick={()=>removeMember(b.user_id)} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 8px",cursor:"pointer"}}>REMOVE</button>}</div>))}
@@ -2328,13 +2196,7 @@ function ManagerPage({allBrackets,results,onResultsUpdate,pools,userId}){
                 <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>Code: {p.code} - {p.password?"Password":"Link only"} - {p.scoring_config?"Custom":"Default"} scoring</div>
               </div>
               <button onClick={()=>{navigator.clipboard.writeText(window.location.origin+"?join="+p.code).then(()=>{setCopied(p.code);setTimeout(()=>setCopied(null),2000);});}} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:8,color:copied===p.code?C.green:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>{copied===p.code?"COPIED":"COPY"}</button>
-              <button onClick={async()=>{
-              if(!window.confirm("Delete pool "+p.name+"? All brackets will be deleted."))return;
-              await supabase.from("brackets").delete().eq("pool_id",p.id);
-              await supabase.from("pool_members").delete().eq("pool_id",p.id);
-              await supabase.from("pools").delete().eq("id",p.id);
-              onResultsUpdate();setMsg("Pool deleted.");
-            }} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>DELETE</button>
+              <button onClick={async()=>{if(!window.confirm("Delete pool "+p.name+"? All brackets will be deleted."))return;await supabase.from("pools").delete().eq("id",p.id);onResultsUpdate();setMsg("Pool deleted.");}} style={{background:"transparent",border:"1px solid rgba(239,68,68,.3)",borderRadius:8,color:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,padding:"5px 10px",cursor:"pointer",flexShrink:0}}>DELETE</button>
             </div>
             {/* Show members for this pool */}
             {allBrackets.filter(b=>b.pool_id===p.id).map(b=>(
@@ -2372,8 +2234,6 @@ export default function App(){
   const[showBracketNameModal,setShowBracketNameModal]=useState(false);
   const[joinCode,setJoinCode]=useState(null),[ joinPool,setJoinPool]=useState(null),[ joinStatus,setJoinStatus]=useState("idle"),[ pendingPoolId,setPendingPoolId]=useState(null);
   const[viewSharedUserId,setViewSharedUserId]=useState(null);
-  const[showPasswordReset,setShowPasswordReset]=useState(false);
-  const[newPassword,setNewPassword]=useState(""),[ resetMsg,setResetMsg]=useState("");
   const[bracketId,setBracketId]=useState(null),[ bracketName,setBracketName]=useState("My WCC Bracket"),[ editingNameHeader,setEditingNameHeader]=useState(false);
   const[groupPicks,setGroupPicksState]=useState(initGroupPicks);
   const[wildcardPicks,setWildcardPicksState]=useState([]);
@@ -2403,38 +2263,28 @@ export default function App(){
 
   useEffect(()=>{supabase.auth.getSession().then(({data:{session}})=>{setUser(session?.user??null);setLoading(false);});const{data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setUser(session?.user??null));return()=>subscription.unsubscribe();},[]);
 
-  useEffect(()=>{const params=new URLSearchParams(window.location.search);const code=params.get("join"),view=params.get("viewbracket"),reset=params.get("reset");if(code)setJoinCode(code.toUpperCase());if(view)setViewSharedUserId(view);if(reset==="1")setShowPasswordReset(true);},[]);
+  useEffect(()=>{const params=new URLSearchParams(window.location.search);const code=params.get("join"),view=params.get("viewbracket");if(code)setJoinCode(code.toUpperCase());if(view)setViewSharedUserId(view);},[]);
 
-  useEffect(()=>{
-    if(!joinCode)return;
-    // Use server-side endpoint so unauthenticated users can look up pool by code
-    fetch("/api/pool-lookup?code="+joinCode)
-      .then(r=>r.ok?r.json():null)
-      .then(data=>{if(data&&!data.error)setJoinPool(data);})
-      .catch(()=>{});
-  },[joinCode]);
+  useEffect(()=>{if(!joinCode)return;supabase.from("pools").select("*").eq("code",joinCode).single().then(({data})=>{if(data)setJoinPool(data);});},[joinCode]);
 
   useEffect(()=>{
     if(!user||!joinPool||joinStatus!=="idle")return;
     const doJoin=async()=>{
       setJoinStatus("joining");
-      if(joinPool.invite_expires_at&&new Date()>new Date(joinPool.invite_expires_at)){setJoinStatus("expired");return;}
-      // Check if already a member
-      const{data:existing}=await supabase.from("pool_members").select("pool_id").eq("pool_id",joinPool.id).eq("user_id",user.id).single();
-      if(existing){setJoinStatus("done");setActivePool(joinPool.id);loadPools();window.history.replaceState({},"","/");return;}
-      // Insert membership (RLS allows users to add themselves)
+      if(new Date()>new Date(joinPool.invite_expires_at)){setJoinStatus("expired");return;}
+      const{data:existing}=await supabase.from("pool_members").select("*").eq("pool_id",joinPool.id).eq("user_id",user.id).single();
+      if(existing){setJoinStatus("done");setActivePool(joinPool.id);window.history.replaceState({},"","/");return;}
       const{error}=await supabase.from("pool_members").insert({pool_id:joinPool.id,user_id:user.id});
       if(!error){
         await supabase.from("brackets").upsert({user_id:user.id,pool_id:joinPool.id,display_name:displayName},{onConflict:"user_id,pool_id"});
         setJoinStatus("naming");
         setPendingPoolId(joinPool.id);
         setShowBracketNameModal(true);
-        loadPools();
         window.history.replaceState({},"","/");
-      }else{console.error("Join error:",error.message);setJoinStatus("error");}
+      }else setJoinStatus("error");
     };
     doJoin();
-  },[user,joinPool,joinStatus,displayName]); // eslint-disable-line
+  },[user,joinPool,joinStatus,displayName]);
 
   const handleBracketNameConfirm=async(name)=>{
     setBracketName(name);
@@ -2472,49 +2322,15 @@ export default function App(){
     load();
   },[user,activePool,displayName]);
 
-  const loadAllBrackets=useCallback(async()=>{
+  useEffect(()=>{
     if(!user||!activePool)return;
-    try{
-      const sess=await supabase.auth.getSession();
-      const token=sess.data?.session?.access_token;
-      if(!token)return;
-      const r=await fetch("/api/brackets?pool_id="+activePool,{
-        headers:{Authorization:"Bearer "+token}
-      });
-      if(!r.ok)return;
-      const d=await r.json();
-      setAllBrackets(d.brackets||[]);
-      // Sync locked/visible from server response
-      if(d.picks_visible!==undefined||d.tournament_locked!==undefined){
-        setResults(prev=>prev?{...prev,picks_visible:d.picks_visible,tournament_locked:d.tournament_locked}:prev);
-      }
-    }catch(e){console.warn("loadAllBrackets error:",e.message);}
+    const loadAll=async()=>{const{data}=await supabase.from("brackets").select("id,user_id,display_name,bracket_name,group_picks,wildcard_picks,wildcard_ranking,knockout_picks,champion_goal_diff_pick,locked").eq("pool_id",activePool);if(data)setAllBrackets(data);};
+    loadAll();
+    const ch=supabase.channel("brackets-"+activePool).on("postgres_changes",{event:"*",schema:"public",table:"brackets"},loadAll).subscribe();
+    return()=>supabase.removeChannel(ch);
   },[user,activePool]);
 
-  useEffect(()=>{
-    if(!user||!activePool)return;
-    loadAllBrackets();
-    // Realtime subscription re-fetches via secure API (not direct table read)
-    const ch=supabase.channel("brackets-"+activePool)
-      .on("postgres_changes",{event:"*",schema:"public",table:"brackets"},loadAllBrackets)
-      .subscribe();
-    return()=>supabase.removeChannel(ch);
-  },[user,activePool,loadAllBrackets]);
-
-  const loadResults=useCallback(async()=>{
-    const{data}=await supabase.from("actual_results").select("*").eq("id",RESULTS_ROW).single();
-    if(data)setResults(data);
-  },[]);
-
-  // Derive live results from match data and merge with stored
-  const[derivedResults,setDerivedResults]=useState(null);
-  useEffect(()=>{
-    if(!matches.length) return;
-    const derived=deriveResultsFromMatches(matches);
-    setDerivedResults(derived);
-  },[matches]);
-
-  const liveResults=useMemo(()=>mergeResults(results,derivedResults),[results,derivedResults]);
+  const loadResults=useCallback(async()=>{const{data}=await supabase.from("actual_results").select("*").eq("id",RESULTS_ROW).single();if(data)setResults(data);},[]);
   useEffect(()=>{if(user)loadResults();},[user,loadResults]);
 
   const fetchMatches=useCallback(async()=>{
@@ -2525,11 +2341,11 @@ export default function App(){
   useEffect(()=>{fetch("/api/odds").then(r=>r.ok?r.json():null).then(data=>{if(!data||!Array.isArray(data))return;const map={};data.forEach(match=>{const book=match.bookmakers?.[0]?.markets?.[0]?.outcomes;if(!book)return;const sorted=[...book].sort((a,b)=>a.price-b.price);const fav=sorted[0],code=NAME_TO_CODE[fav?.name];if(code)map[code]=true;});setOddsMap(map);}).catch(()=>{});},[]);
 
   useEffect(()=>{
-    if(!user||!liveResults||!Object.keys(liveResults.group_results||{}).length)return;
+    if(!user||!results||!Object.keys(results.group_results||{}).length)return;
     if(currentPool?.scoring_config)return;
-    const calc=async()=>{const{data:allData}=await supabase.from("cross_pool_scores").select("user_id,group_picks,wildcard_picks,knockout_picks");if(!allData||allData.length<10)return;const myScore=calculateScore({group_picks:groupPicks,wildcard_picks:wildcardPicks,knockout_picks:knockoutPicks},liveResults,DEFAULT_SCORING).total;const allScores=allData.map(b=>calculateScore(b,results,DEFAULT_SCORING).total).sort((a,b)=>a-b);const below=allScores.filter(s=>s<myScore).length;setGlobalPercentile(Math.round((below/allScores.length)*100));};
+    const calc=async()=>{const{data:allData}=await supabase.from("cross_pool_scores").select("user_id,group_picks,wildcard_picks,knockout_picks");if(!allData||allData.length<10)return;const myScore=calculateScore({group_picks:groupPicks,wildcard_picks:wildcardPicks,knockout_picks:knockoutPicks},results,DEFAULT_SCORING).total;const allScores=allData.map(b=>calculateScore(b,results,DEFAULT_SCORING).total).sort((a,b)=>a-b);const below=allScores.filter(s=>s<myScore).length;setGlobalPercentile(Math.round((below/allScores.length)*100));};
     calc();
-  },[user,liveResults,currentPool,groupPicks,wildcardPicks,knockoutPicks]); // eslint-disable-line
+  },[user,results,currentPool,groupPicks,wildcardPicks,knockoutPicks]);
 
   useEffect(()=>{if(!viewSharedUserId||!allBrackets.length)return;const b=allBrackets.find(x=>x.user_id===viewSharedUserId);if(b)setViewingBracket(b);},[viewSharedUserId,allBrackets]);
 
@@ -2632,8 +2448,8 @@ export default function App(){
         {joinStatus==="done"&&<div style={{background:"rgba(34,197,94,.1)",borderBottom:"1px solid rgba(34,197,94,.3)",padding:"10px 14px",textAlign:"center"}}><span style={{color:C.green,fontFamily:"'Barlow',sans-serif",fontSize:13}}>Joined <strong>{joinPool?.name}</strong>! Make your picks below.</span></div>}
         {joinStatus==="expired"&&<div style={{background:"rgba(239,68,68,.1)",borderBottom:"1px solid rgba(239,68,68,.3)",padding:"10px 14px",textAlign:"center"}}><span style={{color:C.red,fontFamily:"'Barlow',sans-serif",fontSize:13}}>This pool's invite link has expired.</span></div>}
 
-        {page==="home"&&<LeaderboardPage userId={user.id} displayName={displayName} bracketComplete={bracketComplete} bracketName={bracketName} setBracketName={setBracketName} saveName={saveName} allBrackets={allBrackets} results={liveResults} locked={locked} picksVisible={picksVisible} onViewBracket={setViewingBracket} onH2H={setH2hBracket} oddsMap={oddsMap} currentPool={currentPool} matches={matches} globalPercentile={globalPercentile}/>}
-        {page==="bracket"&&<BracketPage step={bracketStep} setStep={setBracketStep} groupPicks={groupPicks} setGroupPicks={setGP} wildcardPicks={wildcardPicks} setWildcardPicks={setWP} wildcardRanking={wildcardRanking} setWildcardRanking={setWR} knockoutPicks={knockoutPicks} setKnockoutPicks={setKP} locked={locked} results={liveResults} championGoalDiff={championGoalDiff} setChampionGoalDiff={setCGD} triggerSave={triggerSave} bracketComplete={bracketComplete} allBrackets={allBrackets}
+        {page==="home"&&<LeaderboardPage userId={user.id} displayName={displayName} bracketComplete={bracketComplete} bracketName={bracketName} setBracketName={setBracketName} saveName={saveName} allBrackets={allBrackets} results={results} locked={locked} picksVisible={picksVisible} onViewBracket={setViewingBracket} onH2H={setH2hBracket} oddsMap={oddsMap} currentPool={currentPool} matches={matches} globalPercentile={globalPercentile}/>}
+        {page==="bracket"&&<BracketPage step={bracketStep} setStep={setBracketStep} groupPicks={groupPicks} setGroupPicks={setGP} wildcardPicks={wildcardPicks} setWildcardPicks={setWP} wildcardRanking={wildcardRanking} setWildcardRanking={setWR} knockoutPicks={knockoutPicks} setKnockoutPicks={setKP} locked={locked} results={results} championGoalDiff={championGoalDiff} setChampionGoalDiff={setCGD} triggerSave={triggerSave} bracketComplete={bracketComplete} allBrackets={allBrackets}
           onDeleteBracket={async()=>{
             if(!window.confirm("Reset your bracket? All picks will be cleared and you can start over. This cannot be undone."))return;
             const fresh=initGroupPicks();
@@ -2649,8 +2465,8 @@ export default function App(){
           }}
         />}
         {page==="matches"&&<MatchesPage matches={matches} loading={matchesLoading}/>}
-        {page==="insights"&&<InsightsPage allBrackets={allBrackets} userId={user.id} results={liveResults} picksVisible={picksVisible} matches={matches}/>}
-        {page==="manager"&&isAdmin&&<ManagerPage allBrackets={allBrackets} results={liveResults} onResultsUpdate={loadResults} pools={pools} userId={user.id}/>}
+        {page==="insights"&&<InsightsPage allBrackets={allBrackets} userId={user.id} results={results} picksVisible={picksVisible} matches={matches}/>}
+        {page==="manager"&&isAdmin&&<ManagerPage allBrackets={allBrackets} results={results} onResultsUpdate={loadResults} pools={pools} userId={user.id}/>}
 
         <nav style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:900,background:C.navBg,borderTop:"1px solid "+C.borderAccent,display:"flex",justifyContent:"space-around",padding:"6px 0 max(env(safe-area-inset-bottom),6px)",zIndex:200}}>
           {navItems.map(({id,label,Icon})=>(
@@ -2663,28 +2479,11 @@ export default function App(){
           ))}
         </nav>
 
-        {viewingBracket&&<BracketViewer bracket={viewingBracket} results={liveResults} onClose={()=>{setViewingBracket(null);if(viewSharedUserId)window.history.replaceState({},"","/");}}/>}
-        {h2hBracket&&myBracket&&<HeadToHeadModal myBracket={myBracket} opponent={h2hBracket} results={liveResults} onClose={()=>setH2hBracket(null)}/>}
+        {viewingBracket&&<BracketViewer bracket={viewingBracket} results={results} onClose={()=>{setViewingBracket(null);if(viewSharedUserId)window.history.replaceState({},"","/");}}/>}
+        {h2hBracket&&myBracket&&<HeadToHeadModal myBracket={myBracket} opponent={h2hBracket} results={results} onClose={()=>setH2hBracket(null)}/>}
         {showCreatePool&&<CreatePoolModal userId={user.id} displayName={displayName} onCreated={id=>{setShowCreatePool(false);loadPools();setActivePool(id);setShowBracketNameModal(true);}} onClose={()=>setShowCreatePool(false)}/>}
-        {showPoolManager&&currentPool&&<PoolManagerPanel pool={currentPool} allBrackets={allBrackets} results={results} onClose={()=>setShowPoolManager(false)} userId={user.id} onPoolDeleted={()=>{setShowPoolManager(false);setActivePool(null);loadPools();}}/>}
+        {showPoolManager&&currentPool&&<PoolManagerPanel pool={currentPool} allBrackets={allBrackets} results={results} onClose={()=>setShowPoolManager(false)} userId={user.id}/>}
         {showBracketNameModal&&<BracketNameModal defaultName={displayName.split(" ")[0]+"'s Picks"} onConfirm={handleBracketNameConfirm}/>}
-        {showPasswordReset&&(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-            <div style={{background:C.card,borderRadius:16,padding:28,maxWidth:360,width:"100%",border:"1px solid "+C.borderAccent,textAlign:"center"}}>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:C.accent,letterSpacing:1.5,marginBottom:8}}>SET NEW PASSWORD</div>
-              <p style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:20,lineHeight:1.5}}>Choose a new password for your account.</p>
-              <input type="password" placeholder="New password (min 8 chars)" value={newPassword} onChange={e=>setNewPassword(e.target.value)}
-                style={{...inp,fontSize:15,marginBottom:14}}/>
-              {resetMsg&&<p style={{color:resetMsg.includes("Error")?C.red:C.green,fontFamily:"'Barlow',sans-serif",fontSize:13,marginBottom:12}}>{resetMsg}</p>}
-              <button onClick={async()=>{
-                if(newPassword.length<8){setResetMsg("Password must be at least 8 characters.");return;}
-                const{error}=await supabase.auth.updateUser({password:newPassword});
-                if(error)setResetMsg("Error: "+error.message);
-                else{setResetMsg("Password updated!");setTimeout(()=>{setShowPasswordReset(false);setNewPassword("");setResetMsg("");window.history.replaceState({},"","/");},1500);}
-              }} disabled={newPassword.length<8} style={{...btn(true,newPassword.length<8),width:"100%"}}>UPDATE PASSWORD</button>
-            </div>
-          </div>
-        )}
       </div>
     </>
   );
