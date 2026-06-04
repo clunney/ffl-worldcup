@@ -72,7 +72,7 @@ const NAME_TO_CODE = {
   "United States":"us","USA":"us","United States of America":"us",
   "Canada":"ca","Haiti":"ht","Jamaica":"jm","Trinidad and Tobago":"tt",
   // Other
-  "Curacao":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
+  "Curacao":"cw","Curacao variant":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
   "Cote d Ivoire 2":"ci","Cote dIvoire":"ci","Korea DPR":"kp","North Korea":"kp",
   "Burkina Faso":"bf","Tanzania":"tz","Zimbabwe":"zw",
   "El Salvador":"sv","Guatemala":"gt","Nicaragua":"ni",
@@ -81,7 +81,7 @@ const NAME_TO_CODE = {
 
 
 // Scoring: group +1 advance, +1 exact position, +4 perfect bonus, wildcard +1
-// Knockout: R32+2, R16+4, QF+8, SF+10, 3rd place+12, Champion+15
+// Knockout: R32+2, R16+4, QF+8, SF+10, 3rd place+12, Champion+20
 const DEFAULT_SCORING = {exactPos:2,advancedWrong:1,wildcardCorrect:1,perfectGroup:4,r32:2,r16:4,qf:8,sf:10,third:12,champion:20};
 const MAX_POSSIBLE = 295;
 const ROUNDS = [
@@ -1106,10 +1106,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
   const chalkPct=useMemo(()=>calcChalkPct(knockoutPicks,r32Teams),[knockoutPicks,r32Teams]);
 
   const pointsNote=(
-    <div style={{background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"10px 14px",margin:"0 12px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.65}}>
-      <strong style={{color:C.accent,display:"block",marginBottom:5}}>How points work</strong>
-      You earn points if your picked team wins that round - the opponent doesn't matter. Your bracket uses your own group stage picks so matchups may differ from real life. If the team wins their round, you score. Each round is fully independent.
-    </div>
+
   );
 
   const tabBar=(
@@ -1557,7 +1554,7 @@ function BracketViewer({bracket,results,onClose}){
           ))}
         </div>
         <div style={{marginTop:12,background:"rgba(6,182,212,.07)",border:"1px solid "+C.borderAccent,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif"}}>
-          Points are awarded if your picked team wins that round - opponent doesn't matter. Each round is independent.
+          Points are awarded if your picked team wins that round - opponent doesn't matter.
         </div>
       </div>
     );
@@ -1964,10 +1961,8 @@ function FaqCard(){
       <Row pts="+8" desc="Quarterfinal advance" color={C.accent}/>
       <Row pts="+10" desc="Semifinal advance" color={C.accent}/>
       <Row pts="+12" desc="3rd place correct" color={C.amber}/>
-      <Row pts="+15" desc="Champion correct" color={"#f59e0b"}/>
-      <div style={{marginTop:8,padding:"8px 10px",background:"rgba(6,182,212,.07)",borderRadius:8,fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",lineHeight:1.5}}>
-        <strong style={{color:C.accent}}>Each round is independent.</strong> Being wrong in an earlier round never costs you points in a later round. If you picked Brazil to reach the Final and they do, you earn R32 + R16 + QF + SF points automatically.
-      </div>
+      <Row pts="+20" desc="Champion correct" color={"#f59e0b"}/>
+
     </div>],
     ["MAX and PROJ columns",<div>
       <Row pts="MAX" desc="Maximum possible score" color={C.amber} sub="your current score + full points for every remaining pick if they all come true"/>
@@ -1997,7 +1992,7 @@ function FaqCard(){
       <div style={{padding:"12px 14px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
         <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>SCORING GUIDE & FAQ</div>
         <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          {[["+1/+2","Groups",C.accent],["+1","Wildcards",C.accent],["+2 to +15","Knockout",C.amber]].map(([pts,label,color])=>(
+          {[["+1/+2","Groups",C.accent],["+1","Wildcards",C.accent],["+2 to +20","Knockout",C.amber]].map(([pts,label,color])=>(
             <span key={label} style={{background:color+"15",color:color,fontFamily:"'Barlow',sans-serif",fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10}}>{pts} {label}</span>
           ))}
         </div>
