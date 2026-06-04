@@ -1105,9 +1105,7 @@ function KnockoutPage({groupPicks,wildcardPicks,wildcardRanking,knockoutPicks,se
   const picked=Object.keys(knockoutPicks[activeRound]||{}).length;
   const chalkPct=useMemo(()=>calcChalkPct(knockoutPicks,r32Teams),[knockoutPicks,r32Teams]);
 
-  const pointsNote=(
-
-  );
+  const pointsNote=null;
 
   const tabBar=(
     <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:12}}>
