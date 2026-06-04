@@ -71,13 +71,6 @@ const MATCH_VENUES = {
   "Portugal-Colombia":"Levi's Stadium, Santa Clara",
   "England-Croatia":"Mercedes-Benz Stadium, Atlanta",
 };
-const getVenue=(m)=>{
-  if(m.venue) return m.venue;
-  const key=m.homeTeam?.name+"-"+m.awayTeam?.name;
-  const key2=m.awayTeam?.name+"-"+m.homeTeam?.name;
-  return MATCH_VENUES[key]||MATCH_VENUES[key2]||null;
-};
-
 const DEFAULT_SCORING = {exactPos:2,advancedWrong:1,wildcardCorrect:1,perfectGroup:4,r32:2,r16:4,qf:8,sf:10,third:12,champion:20};
 const MAX_POSSIBLE = 368;
 const ROUNDS = [
