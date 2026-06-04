@@ -74,9 +74,9 @@ const NAME_TO_CODE = {
   // Other
   "Curacao":"cw","Bosnia-Herzegovina":"ba","Bosnia Herzegovina":"ba","Cape Verde Islands":"cv",
   "Cote d Ivoire 2":"ci","Cote dIvoire":"ci","Korea DPR":"kp","North Korea":"kp",
-  "Burkina Faso":"bf","Cameroon":"cm","Tanzania":"tz","Zambia":"zm","Zimbabwe":"zw",
-  "Trinidad and Tobago":"tt","El Salvador":"sv","Guatemala":"gt","Nicaragua":"ni",
-  "Cuba":"cu","Jamaica":"jm","Barbados":"bb","Antigua and Barbuda":"ag",
+  "Burkina Faso":"bf","Tanzania":"tz","Zimbabwe":"zw",
+  "El Salvador":"sv","Guatemala":"gt","Nicaragua":"ni",
+  "Cuba":"cu","Barbados":"bb","Antigua and Barbuda":"ag",
 };
 
 
