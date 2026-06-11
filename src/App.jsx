@@ -212,9 +212,10 @@ function deriveResultsFromMatches(matches){
   });
 
   // Determine if all group matches finished to rank each group
+  // Each group has 4 teams playing 6 matches (3 matchdays x 2 matches each)
   Object.entries(WC_GROUPS).forEach(([g,teams])=>{
     const gFinished=finished.filter(m=>m.stage==="GROUP_STAGE"&&teams.some(t=>codeFromApiName(m.homeTeam?.name)===t.code||codeFromApiName(m.awayTeam?.name)===t.code));
-    if(gFinished.length<3) return; // need all 3 matchdays to finalize
+    if(gFinished.length<6) return; // need all 6 matches (3 matchdays x 2) to finalize
     const ranked=[...teams].sort((a,b)=>(groupPts[b.code]||0)-(groupPts[a.code]||0)||((groupGD[b.code]||0)-(groupGD[a.code]||0))||((groupGF[b.code]||0)-(groupGF[a.code]||0)));
     groupResults[g]=ranked;
     wcCandidates[g]={...ranked[2],pts:groupPts[ranked[2]?.code]||0,gd:groupGD[ranked[2]?.code]||0,gf:groupGF[ranked[2]?.code]||0};
