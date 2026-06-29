@@ -306,8 +306,11 @@ function mergeResults(stored,derived){
 function groupPickDetail(team,i,actArr,wc,scoring=DEFAULT_SCORING){
   if(!actArr||!actArr.length) return{pts:null,status:"pending",actualIdx:null};
   const aIdx=actArr.findIndex(t=>t.code===team.code);
-  if(aIdx===i) return{pts:scoring.exactPos,status:"exact",actualIdx:aIdx};
-  if(aIdx<=1) return{pts:scoring.advancedWrong,status:"advanced",actualIdx:aIdx};
+  const isExact=aIdx===i;
+  if(isExact&&i<=1) return{pts:scoring.exactPos,status:"exact",actualIdx:aIdx};
+  if(isExact&&i===2&&wc.includes(team.code)) return{pts:scoring.advancedWrong,status:"exact",actualIdx:aIdx};
+  if(isExact) return{pts:0,status:"exact",actualIdx:aIdx}; // exact 3rd(non-wildcard) or exact 4th: no standalone points, still counts toward perfect bonus
+  if(aIdx<=1&&i<=2) return{pts:scoring.advancedWrong,status:"advanced",actualIdx:aIdx};
   if(aIdx===2&&wc.includes(team.code)&&i<=1) return{pts:scoring.advancedWrong,status:"wildcard-cross",actualIdx:aIdx};
   return{pts:0,status:"none",actualIdx:aIdx};
 }
@@ -337,10 +340,12 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
     let gPts=0,exact=0;
     pred.forEach((team,i)=>{
       const aIdx=act.findIndex(t=>t.code===team.code);
-      if(aIdx===i){gPts+=scoring.exactPos;exact++;}
-      else if(aIdx<=1) gPts+=scoring.advancedWrong;
-      // If you picked top-2 but they advanced as a wildcard: still +1
-      else if(aIdx===2&&wc.includes(team.code)&&i<=1) gPts+=scoring.advancedWrong;
+      const isExact=aIdx===i;
+      if(isExact) exact++; // any exact-position match counts toward the perfect-group bonus, regardless of slot
+      if(isExact&&i<=1) gPts+=scoring.exactPos; // exact bonus only for 1st/2nd
+      else if(isExact&&i===2&&wc.includes(team.code)) gPts+=scoring.advancedWrong; // exact 3rd call that's a real wildcard: still earns the advance credit, no position bonus
+      else if(!isExact&&aIdx<=1&&i<=2) gPts+=scoring.advancedWrong; // advanced in the wrong slot (i=3 never qualifies)
+      else if(!isExact&&aIdx===2&&wc.includes(team.code)&&i<=1) gPts+=scoring.advancedWrong; // picked top-2, actually advanced via wildcard
     });
     if(exact===4) gPts+=scoring.perfectGroup;
     total+=gPts;
