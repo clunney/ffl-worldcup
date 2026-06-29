@@ -431,6 +431,29 @@ function getTeamsAlive(bracket,results){
   return r32Codes.filter(code=>!isTeamEliminated(code,results)).length;
 }
 
+// Vegas-style "odds to win the pool" for every entry, based on current + projected points.
+// Uses a softmax over projected scores: temperature scales with the spread of proj values
+// in the field, so tight races stay close to even and blown-open races sharpen naturally -
+// recalculates automatically every time results update (live, after each match).
+function probToAmericanOdds(p){
+  if(p<=0.001) return "+99900";
+  if(p>=0.999) return "-99900";
+  if(p>=0.5) return "-"+Math.round(p/(1-p)*100);
+  return "+"+Math.round((1-p)/p*100);
+}
+function computeWinOdds(entries){
+  const n=entries.length;
+  if(n===0) return [];
+  if(n===1) return[{prob:1,odds:"-99900"}];
+  const proj=entries.map(e=>e.proj);
+  const maxProj=Math.max(...proj);
+  const spread=maxProj-Math.min(...proj);
+  const T=Math.max(4,spread/4);
+  const weights=proj.map(p=>Math.exp((p-maxProj)/T));
+  const sumW=weights.reduce((a,b)=>a+b,0);
+  return weights.map(w=>{const prob=w/sumW;return{prob,odds:probToAmericanOdds(prob)};});
+}
+
 // Chalk %: for each knockout pick, did you pick the better-ranked team?
 function calcChalkPct(knockoutPicks,r32Teams){
   let chalk=0,total=0;
@@ -1922,7 +1945,11 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
   const[nameVal,setNameVal]=useState(bracketName);
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
-  const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
+  const scored=useMemo(()=>{
+    const base=allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score);
+    const odds=tournamentStarted?computeWinOdds(base):base.map(()=>({prob:null,odds:null}));
+    return base.map((b,i)=>({...b,winOdds:odds[i].odds,winProb:odds[i].prob}));
+  },[allBrackets,results,oddsMap,scoring,tournamentStarted]);
   const myEntry=scored.find(b=>b.user_id===userId),myPos=myEntry?scored.indexOf(myEntry)+1:null;
   // Rank movement since the last time this device loaded the standings
   const rankKey=currentPool?"wcc_prevRanks_"+currentPool:null;
@@ -2006,9 +2033,15 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>STANDINGS</div>
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{allBrackets.length} entries - {MAX_POSSIBLE} pts max</span>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 10px",marginBottom:4}}>
-          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:1}}>RANK / BRACKET</span>
-          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:1}}>PTS - MAX - PROJ - LEFT</span>
+        <div style={{display:"grid",gridTemplateColumns:"20px minmax(0,1fr) 22px 30px 30px 30px 26px 42px",gap:4,padding:"5px 7px",background:"rgba(6,182,212,.1)",borderRadius:6,marginBottom:3}}>
+          <span></span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,letterSpacing:.5}}>BRACKET</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"center"}} title="Champion pick">C</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"right"}} title="Current points">PTS</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"right"}} title="Points if all remaining picks correct">MAX</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"right"}} title="Projected with odds favorites">PROJ</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"right"}} title="Teams remaining alive">LFT</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,textAlign:"right"}} title="Vegas-style odds to win the pool">ODDS</span>
         </div>
         {scored.length===0&&(
           <div style={{padding:"24px",textAlign:"center"}}>
@@ -2026,45 +2059,27 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           const champCode=picksVisible||b.user_id===userId?b.knockout_picks?.champion?.code:null;
           const champName=champCode?ALL_TEAMS.find(t=>t.code===champCode)?.name||champCode:null;
           return(
-            <div key={b.id} style={{padding:"10px",borderBottom:i<scored.length-1?"1px solid "+C.border:"none",background:isMe?"rgba(6,182,212,.06)":"transparent",borderRadius:6}}>
-              {/* Line 1: rank + movement + name + champion flag */}
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:2,flexShrink:0,minWidth:24}}>
-                  <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{i+1}</span>
-                  {delta>0&&<span style={{color:C.green,fontSize:9}}>{"\u25b2"+delta}</span>}
-                  {delta<0&&<span style={{color:C.red,fontSize:9}}>{"\u25bc"+Math.abs(delta)}</span>}
+            <div key={b.id} style={{padding:"7px",borderBottom:i<scored.length-1?"1px solid "+C.border:"none",background:isMe?"rgba(6,182,212,.06)":"transparent",borderRadius:6}}>
+              <div style={{display:"grid",gridTemplateColumns:"20px minmax(0,1fr) 22px 30px 30px 30px 26px 42px",gap:4,alignItems:"center"}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",lineHeight:1}}>
+                  <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{i+1}</span>
+                  {delta>0&&<span style={{color:C.green,fontSize:7}}>{"\u25b2"+delta}</span>}
+                  {delta<0&&<span style={{color:C.red,fontSize:7}}>{"\u25bc"+Math.abs(delta)}</span>}
                 </div>
-                <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:5,overflow:"hidden"}}>
-                  <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.bracket_name||"Unnamed"}</span>
-                  {isMe&&<span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:9,background:"rgba(6,182,212,.15)",padding:"1px 6px",borderRadius:10,flexShrink:0}}>YOU</span>}
-                  {canView&&<span style={{color:C.muted,fontSize:10,flexShrink:0}}>{">"}</span>}
+                <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default",minWidth:0,overflow:"hidden",display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{color:isMe?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.bracket_name||"Unnamed"}</span>
+                  {canView&&<span style={{color:C.muted,fontSize:9,flexShrink:0}}>{">"}</span>}
                 </div>
-                {champCode&&(
-                  <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
-                    <img src={"https://flagcdn.com/w40/"+champCode+".png"} alt={champName} style={{width:18,height:13,borderRadius:2,objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
-                  </div>
-                )}
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  {champCode?<img src={"https://flagcdn.com/w40/"+champCode+".png"} alt={champName} style={{width:18,height:13,borderRadius:2,objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>:<span style={{color:C.muted,fontSize:11}}>-</span>}
+                </div>
+                <span style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,textAlign:"right"}}>{tournamentStarted?b.score:"---"}</span>
+                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,textAlign:"right"}}>{tournamentStarted?b.maxPts:"---"}</span>
+                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
+                <span style={{color:b.teamsAlive==null?C.muted:b.teamsAlive>4?C.green:b.teamsAlive>1?C.amber:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:12,textAlign:"right"}}>{b.teamsAlive!=null?b.teamsAlive:"---"}</span>
+                <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:"right",whiteSpace:"nowrap"}}>{b.winOdds||"---"}</span>
               </div>
-              {/* Line 2: equal-width stat row - always fits, never overflows */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,textAlign:"center"}}>
-                <div>
-                  <div style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.score:"---"}</div>
-                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>PTS</div>
-                </div>
-                <div>
-                  <div style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.maxPts:"---"}</div>
-                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>MAX</div>
-                </div>
-                <div>
-                  <div style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.proj:"---"}</div>
-                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>PROJ</div>
-                </div>
-                <div>
-                  <div style={{color:b.teamsAlive==null?C.muted:b.teamsAlive>4?C.green:b.teamsAlive>1?C.amber:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{b.teamsAlive!=null?b.teamsAlive:"---"}</div>
-                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>LEFT</div>
-                </div>
-              </div>
-              {canView&&<div style={{marginTop:8,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
+              {canView&&<div style={{marginTop:6,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
             </div>
           );
         })}
@@ -2142,6 +2157,13 @@ function FaqCard(){
       <Row pts="PROJ" desc="Projected score" color={C.green} sub="based on odds favorites winning every remaining undecided match"/>
       <div style={{marginTop:6,color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.5}}>
         MAX goes down as matches are decided (wrong picks are locked in as 0). PROJ updates as odds shift.
+      </div>
+    </div>],
+    ["LFT and ODDS columns",<div>
+      <Row pts="LFT" desc="Teams remaining" color={C.green} sub="how many of your Round of 32 picks are still alive in the real tournament"/>
+      <Row pts="ODDS" desc="Odds to win the pool" color={C.accent} sub="a Vegas-style estimate, for fun - not a real bet"/>
+      <div style={{marginTop:6,color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,lineHeight:1.5}}>
+        Odds are based on everyone's current and projected points relative to the field. A bigger gap to the leader means longer odds; a close race keeps everyone's odds near even. They update automatically after every match.
       </div>
     </div>],
     ["Tiebreaker",<div>
