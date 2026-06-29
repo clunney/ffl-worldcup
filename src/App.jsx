@@ -308,8 +308,7 @@ function groupPickDetail(team,i,actArr,wc,scoring=DEFAULT_SCORING){
   const aIdx=actArr.findIndex(t=>t.code===team.code);
   const isExact=aIdx===i;
   if(isExact&&i<=1) return{pts:scoring.exactPos,status:"exact",actualIdx:aIdx};
-  if(isExact&&i===2&&wc.includes(team.code)) return{pts:scoring.advancedWrong,status:"exact",actualIdx:aIdx};
-  if(isExact) return{pts:0,status:"exact",actualIdx:aIdx}; // exact 3rd(non-wildcard) or exact 4th: no standalone points, still counts toward perfect bonus
+  if(isExact) return{pts:0,status:"exact",actualIdx:aIdx}; // exact 3rd or exact 4th: no standalone group points (wildcard credit, if any, comes only from your separate wildcard picks - no double count)
   if(aIdx<=1&&i<=2) return{pts:scoring.advancedWrong,status:"advanced",actualIdx:aIdx};
   if(aIdx===2&&wc.includes(team.code)&&i<=1) return{pts:scoring.advancedWrong,status:"wildcard-cross",actualIdx:aIdx};
   return{pts:0,status:"none",actualIdx:aIdx};
@@ -343,7 +342,7 @@ function calculateScore(bracket,results,scoring=DEFAULT_SCORING){
       const isExact=aIdx===i;
       if(isExact) exact++; // any exact-position match counts toward the perfect-group bonus, regardless of slot
       if(isExact&&i<=1) gPts+=scoring.exactPos; // exact bonus only for 1st/2nd
-      else if(isExact&&i===2&&wc.includes(team.code)) gPts+=scoring.advancedWrong; // exact 3rd call that's a real wildcard: still earns the advance credit, no position bonus
+      // exact 3rd or exact 4th: no standalone group points here - if that team is a real wildcard, credit comes only from the separate wildcard_picks loop below (avoids double counting)
       else if(!isExact&&aIdx<=1&&i<=2) gPts+=scoring.advancedWrong; // advanced in the wrong slot (i=3 never qualifies)
       else if(!isExact&&aIdx===2&&wc.includes(team.code)&&i<=1) gPts+=scoring.advancedWrong; // picked top-2, actually advanced via wildcard
     });
@@ -410,24 +409,26 @@ function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
   return current+extra;
 }
 
+// A team is eliminated if it played a round (appears in decided_teams) but did NOT win that round.
+function isTeamEliminated(code,results){
+  const decided=results?.decided_teams||{},koR=results?.knockout_results||{};
+  for(const r of ["r32","r16","qf","sf"]){
+    if((decided[r]||[]).includes(code)){
+      const winners=new Set(Object.values(koR[r]||{}).map(t=>t?.code).filter(Boolean));
+      if(!winners.has(code)) return true; // played this round and lost
+    }
+  }
+  return false;
+}
+// Teams remaining = how many of your Round of 32 picks (your full bracket's team pool) are still alive in real life.
+// Later rounds' picks are always a subset of your R32 picks, so R32 is the canonical pool to check.
 function getTeamsAlive(bracket,results){
-  const koR=results?.knockout_results||{},ko=bracket?.knockout_picks||{};
-  if(!Object.keys(koR).length) return null;
-  const pickedCodes=new Set();
-  ["r16","qf","sf"].forEach(r=>{Object.values(ko[r]||{}).forEach(t=>{if(t?.code)pickedCodes.add(t.code);});});
-  if(ko.champion?.code) pickedCodes.add(ko.champion.code);
-  let alive=0;
-  pickedCodes.forEach(code=>{
-    const isElim=["r32","r16","qf","sf"].some(r=>{
-      const acts=Object.values(koR[r]||{});
-      const rIdx=ROUNDS.findIndex(x=>x.id===r);
-      const nextR=ROUNDS[rIdx+1];if(!nextR)return false;
-      const nextW=Object.values(koR[nextR.id]||{}).map(t=>t?.code);
-      return acts.some(t=>t?.code===code)&&!nextW.includes(code);
-    });
-    if(!isElim) alive++;
-  });
-  return alive;
+  const ko=bracket?.knockout_picks||{};
+  const r32Codes=[...new Set(Object.values(ko.r32||{}).map(t=>t?.code).filter(Boolean))];
+  if(!r32Codes.length) return null;
+  const koR=results?.knockout_results||{};
+  if(!Object.keys(koR).length) return null; // knockout stage hasn't started yet
+  return r32Codes.filter(code=>!isTeamEliminated(code,results)).length;
 }
 
 // Chalk %: for each knockout pick, did you pick the better-ranked team?
@@ -1923,6 +1924,25 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
   const tournamentStarted=results&&Object.keys(results.group_results||{}).length>0;
   const scored=useMemo(()=>allBrackets.map(b=>({...b,score:calculateScore(b,results,scoring).total,proj:calculateProjected(b,results,oddsMap,scoring),maxPts:calculateMaxPoints(b,results,scoring),teamsAlive:getTeamsAlive(b,results)})).sort((a,b)=>b.score-a.score),[allBrackets,results,oddsMap,scoring]);
   const myEntry=scored.find(b=>b.user_id===userId),myPos=myEntry?scored.indexOf(myEntry)+1:null;
+  // Rank movement since the last time this device loaded the standings
+  const rankKey=currentPool?"wcc_prevRanks_"+currentPool:null;
+  const rankDeltas=useMemo(()=>{
+    if(!rankKey||!scored.length) return{};
+    let prev={};
+    try{prev=JSON.parse(localStorage.getItem(rankKey)||"{}");}catch(e){}
+    const deltas={};
+    scored.forEach((b,i)=>{
+      const prevRank=prev[b.user_id];
+      if(prevRank!=null) deltas[b.user_id]=prevRank-(i+1); // positive = moved up
+    });
+    return deltas;
+  },[scored,rankKey]);
+  useEffect(()=>{
+    if(!rankKey||!scored.length) return;
+    const current={};
+    scored.forEach((b,i)=>{current[b.user_id]=i+1;});
+    try{localStorage.setItem(rankKey,JSON.stringify(current));}catch(e){}
+  },[scored,rankKey]);
   const shareMyBracket=()=>{
     navigator.clipboard.writeText(window.location.origin+"?viewbracket="+userId)
       .then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});
@@ -1986,8 +2006,9 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:C.accent,letterSpacing:1}}>STANDINGS</div>
           <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{allBrackets.length} entries - {MAX_POSSIBLE} pts max</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"26px 1fr 80px 46px 50px 46px",gap:6,padding:"6px 10px",background:"rgba(6,182,212,.1)",borderRadius:7,marginBottom:4}}>
-          {[["#",""],["BRACKET",""],["CHAMP","Champion pick"],["PTS","Current points"],["MAX","Points if all remaining picks correct"],["PROJ","Projected with odds favorites"]].map(([h,tip])=>(<span key={h} title={tip} style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,textAlign:h!=="BRACKET"?"right":"left",cursor:tip?"help":"default"}}>{h}</span>))}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 10px",marginBottom:4}}>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:1}}>RANK / BRACKET</span>
+          <span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:11,letterSpacing:1}}>PTS - MAX - PROJ - LEFT</span>
         </div>
         {scored.length===0&&(
           <div style={{padding:"24px",textAlign:"center"}}>
@@ -2001,38 +2022,49 @@ function LeaderboardPage({userId,displayName,bracketComplete,bracketName,setBrac
         )}
         {scored.map((b,i)=>{
           const isMe=b.user_id===userId,canView=picksVisible&&!isMe;
+          const delta=rankDeltas[b.user_id];
+          const champCode=picksVisible||b.user_id===userId?b.knockout_picks?.champion?.code:null;
+          const champName=champCode?ALL_TEAMS.find(t=>t.code===champCode)?.name||champCode:null;
           return(
             <div key={b.id} style={{padding:"10px",borderBottom:i<scored.length-1?"1px solid "+C.border:"none",background:isMe?"rgba(6,182,212,.06)":"transparent",borderRadius:6}}>
-              <div style={{display:"grid",gridTemplateColumns:"26px 1fr 80px 46px 50px 46px",gap:6,alignItems:"center"}}>
-                <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{i+1}</span>
-                <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default"}}>
-                  <div style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
-                    {b.bracket_name||"Unnamed"}
-                    {isMe&&<span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:9,background:"rgba(6,182,212,.15)",padding:"1px 6px",borderRadius:10}}>YOU</span>}
-                    {canView&&<span style={{color:C.muted,fontSize:10}}>{">"}</span>}
-                  </div>
-                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,display:"flex",alignItems:"center",gap:5}}>
-                    <span>{b.display_name||"---"}</span>
-                    {b.teamsAlive!=null&&<span style={{color:b.teamsAlive>4?C.green:b.teamsAlive>1?C.amber:C.red}}>- {b.teamsAlive} alive</span>}
-                  </div>
+              {/* Line 1: rank + movement + name + champion flag */}
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:2,flexShrink:0,minWidth:24}}>
+                  <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{i+1}</span>
+                  {delta>0&&<span style={{color:C.green,fontSize:9}}>{"\u25b2"+delta}</span>}
+                  {delta<0&&<span style={{color:C.red,fontSize:9}}>{"\u25bc"+Math.abs(delta)}</span>}
                 </div>
-                {(()=>{
-                  const champCode=picksVisible||b.user_id===userId?b.knockout_picks?.champion?.code:null;
-                  const champName=champCode?ALL_TEAMS.find(t=>t.code===champCode)?.name||champCode:null;
-                  return champCode?(
-                    <div style={{display:"flex",alignItems:"center",gap:4,overflow:"hidden"}}>
-                      <img src={"https://flagcdn.com/w40/"+champCode+".png"} alt={champName} style={{width:20,height:14,borderRadius:2,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
-                      <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{champName}</span>
-                    </div>
-                  ):(
-                    <span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,textAlign:"left"}}>-</span>
-                  );
-                })()}
-                <span style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15,textAlign:"right"}}>{tournamentStarted?b.score:"---"}</span>
-                <span style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,textAlign:"right"}}>{tournamentStarted?b.maxPts:"---"}</span>
-                <span style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:13,textAlign:"right"}}>{tournamentStarted?b.proj:"---"}</span>
+                <div onClick={()=>canView&&onViewBracket(b)} style={{cursor:canView?"pointer":"default",flex:1,minWidth:0,display:"flex",alignItems:"center",gap:5,overflow:"hidden"}}>
+                  <span style={{color:C.text,fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.bracket_name||"Unnamed"}</span>
+                  {isMe&&<span style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:9,background:"rgba(6,182,212,.15)",padding:"1px 6px",borderRadius:10,flexShrink:0}}>YOU</span>}
+                  {canView&&<span style={{color:C.muted,fontSize:10,flexShrink:0}}>{">"}</span>}
+                </div>
+                {champCode&&(
+                  <div style={{display:"flex",alignItems:"center",gap:3,flexShrink:0}}>
+                    <img src={"https://flagcdn.com/w40/"+champCode+".png"} alt={champName} style={{width:18,height:13,borderRadius:2,objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>
+                  </div>
+                )}
               </div>
-              {canView&&<div style={{marginTop:6,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
+              {/* Line 2: equal-width stat row - always fits, never overflows */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4,textAlign:"center"}}>
+                <div>
+                  <div style={{color:tournamentStarted?C.text:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.score:"---"}</div>
+                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>PTS</div>
+                </div>
+                <div>
+                  <div style={{color:tournamentStarted?C.amber:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.maxPts:"---"}</div>
+                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>MAX</div>
+                </div>
+                <div>
+                  <div style={{color:tournamentStarted?C.green:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{tournamentStarted?b.proj:"---"}</div>
+                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>PROJ</div>
+                </div>
+                <div>
+                  <div style={{color:b.teamsAlive==null?C.muted:b.teamsAlive>4?C.green:b.teamsAlive>1?C.amber:C.red,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{b.teamsAlive!=null?b.teamsAlive:"---"}</div>
+                  <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>LEFT</div>
+                </div>
+              </div>
+              {canView&&<div style={{marginTop:8,display:"flex",gap:6}}><button onClick={()=>onH2H(b)} style={{background:"transparent",border:"1px solid "+C.accentDim,borderRadius:6,color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>H2H</button><button onClick={()=>onViewBracket(b)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:6,color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:10,padding:"3px 10px",cursor:"pointer",letterSpacing:.5}}>VIEW</button></div>}
             </div>
           );
         })}
