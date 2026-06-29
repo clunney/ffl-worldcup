@@ -324,6 +324,9 @@ function knockoutPickStatus(code,round,results){
   const actualRound=results?.knockout_results?.[round]||{};
   const winners=new Set(Object.values(actualRound).map(t=>t?.code).filter(Boolean));
   if(winners.has(code)) return"correct";
+  // Never qualified for the real knockout bracket at all (didn't finish top-2 or make the wildcard cut)?
+  // This applies regardless of round - a team that failed in groups can never win any knockout match.
+  if(results?.groups_finalized&&results?.r32_pool&&!results.r32_pool.includes(code)) return"eliminated";
   const decided=new Set(results?.decided_teams?.[round]||[]);
   if(decided.has(code)) return"eliminated";
   return"pending";
@@ -372,9 +375,15 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   const ko=bracket.knockout_picks,koR=results?.knockout_results||{};
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{},pred=ko[round]||{};
-    Object.keys(pred).forEach(idx=>{if(act[+idx])return;const pick=pred[+idx];if(pick&&oddsMap[pick.code])proj+=scoring[round];});
+    const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
+    Object.values(pred).forEach(pick=>{
+      if(!pick?.code) return;
+      if(actualAdvancers.has(pick.code)) return; // already counted in base score - avoid double counting
+      if(isTeamEliminated(pick.code,results)) return; // confirmed dead - never qualified, or lost a real match
+      if(oddsMap[pick.code]) proj+=scoring[round]; // still alive and has betting odds for an upcoming match
+    });
   });
-  if(!koR.champion&&ko.champion&&oddsMap[ko.champion.code]) proj+=scoring.champion;
+  if(!koR.champion&&ko.champion?.code&&!isTeamEliminated(ko.champion.code,results)&&oddsMap[ko.champion.code]) proj+=scoring.champion;
   return proj;
 }
 
@@ -383,34 +392,27 @@ function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
   const current=calculateScore(bracket,results,scoring).total;
   const ko=bracket?.knockout_picks||{};
   const koR=results?.knockout_results||{};
-  const decided=results?.decided_teams||{r32:[],r16:[],qf:[],sf:[]};
-  const r32Pool=results?.r32_pool||null;
-  const groupsFinalized=!!results?.groups_finalized;
   let extra=0;
-  let priorAdvancers=null,priorDecided=null; // from the round before this one
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{};
     const pred=ko[round]||{};
     const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
-    const decidedSet=new Set(decided[round]||[]);
-    const predCodes=Object.values(pred).map(t=>t?.code).filter(Boolean);
-    predCodes.forEach(code=>{
-      if(actualAdvancers.has(code)) return; // already counted in current score
-      if(decidedSet.has(code)) return; // played THIS round already and lost - confirmed dead
-      if(round==="r32"&&groupsFinalized&&r32Pool&&!r32Pool.includes(code)) return; // groups done, this team never qualified - dead
-      if(round!=="r32"&&priorDecided&&priorDecided.has(code)&&priorAdvancers&&!priorAdvancers.has(code)) return; // lost the previous round - dead
+    Object.values(pred).forEach(pick=>{
+      if(!pick?.code) return;
+      if(actualAdvancers.has(pick.code)) return; // already counted in current score
+      if(isTeamEliminated(pick.code,results)) return; // confirmed dead - never qualified, or lost a real match
       extra+=scoring[round]||0; // genuinely still earnable
     });
-    priorAdvancers=actualAdvancers;
-    priorDecided=decidedSet;
   });
-  if(!koR.thirdPlace&&ko.thirdPlace) extra+=scoring.third||0;
-  if(!koR.champion&&ko.champion) extra+=scoring.champion||0;
+  if(!koR.thirdPlace&&ko.thirdPlace?.code&&!isTeamEliminated(ko.thirdPlace.code,results)) extra+=scoring.third||0;
+  if(!koR.champion&&ko.champion?.code&&!isTeamEliminated(ko.champion.code,results)) extra+=scoring.champion||0;
   return current+extra;
 }
 
 // A team is eliminated if it played a round (appears in decided_teams) but did NOT win that round.
 function isTeamEliminated(code,results){
+  // Never qualified for the real knockout bracket at all (didn't finish top-2 or make the wildcard cut)?
+  if(results?.groups_finalized&&results?.r32_pool&&!results.r32_pool.includes(code)) return true;
   const decided=results?.decided_teams||{},koR=results?.knockout_results||{};
   for(const r of ["r32","r16","qf","sf"]){
     if((decided[r]||[]).includes(code)){
@@ -1528,10 +1530,10 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
                     {Object.entries(picks).map(([idx,team])=>team?(()=>{
-                      const isCorrect=actualWinnerCodes.has(team.code);
-                      const isDecided=decidedCodes.has(team.code);
-                      const isEliminated=isDecided&&!isCorrect;
-                      const isPending=!isDecided&&!isCorrect;
+                      const status=knockoutPickStatus(team.code,round.id,results);
+                      const isCorrect=status==="correct";
+                      const isEliminated=status==="eliminated";
+                      const isPending=status==="pending";
                       return(
                         <div key={idx} style={{display:"flex",alignItems:"center",gap:6,background:C.card,borderRadius:7,padding:"7px 10px",border:"1px solid "+(isCorrect?C.green+"55":C.border),opacity:isEliminated?0.38:1}}>
                           <Flag code={team.code} size={18}/>
