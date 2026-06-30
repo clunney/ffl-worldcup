@@ -92,6 +92,90 @@ const ROUNDS = [
 ];
 const STAGE_TO_ROUND = {LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final"};
 
+// Official 2026 FIFA World Cup knockout bracket tree.
+// Ordered pairs = direct R32 opponents. Consecutive pair-of-pairs = same R16 slot. Etc.
+// This is static — the bracket draw is fixed at tournament start.
+const R32_PAIRS = [
+  ["za","ca"],["br","jp"],   // R16 group 1 (Jul 4 slot A) -> QF half 1
+  ["de","py"],["nl","ma"],   // R16 group 2 (Jul 4 slot B) -> QF half 1
+  ["ci","no"],["fr","se"],   // R16 group 3 (Jul 5 slot A) -> QF half 2
+  ["mx","ec"],["gb-eng","cd"], // R16 group 4 (Jul 5 slot B) -> QF half 2
+  ["be","sn"],["us","ba"],   // R16 group 5 (Jul 6 slot A) -> QF half 3
+  ["es","at"],["pt","hr"],   // R16 group 6 (Jul 6 slot B) -> QF half 3
+  ["ch","dz"],["au","eg"],   // R16 group 7 (Jul 7 slot A) -> QF half 4
+  ["ar","cv"],["co","gh"],   // R16 group 8 (Jul 7 slot B) -> QF half 4
+];
+// Build hierarchical bracket groups from R32_PAIRS: each round's groups are formed by
+// merging consecutive pairs of the round below.
+const BRACKET_GROUPS = {
+  r32: R32_PAIRS,
+  r16: R32_PAIRS.reduce((acc,_,i)=>i%2===0?[...acc,[...R32_PAIRS[i],...R32_PAIRS[i+1]]]:acc,[]),
+  qf:  R32_PAIRS.reduce((acc,_,i)=>i%4===0?[...acc,[...R32_PAIRS[i],...R32_PAIRS[i+1],...R32_PAIRS[i+2],...R32_PAIRS[i+3]]]:acc,[]),
+  sf:  [[...R32_PAIRS.slice(0,8).flat()],[...R32_PAIRS.slice(8,16).flat()]],
+};
+const ROUND_DEPTH = {r32:0,r16:1,qf:2,sf:3};
+
+// Returns true if two team codes are in the same bracket group for a given round
+// (i.e. only ONE of them can win that round — they're on a collision course).
+function inSameBracketGroup(c1,c2,round){
+  return (BRACKET_GROUPS[round]||[]).some(grp=>grp.includes(c1)&&grp.includes(c2));
+}
+
+// For MAX points: when two picks collide, return the set of codes that should be
+// BLOCKED (the one the user has going LESS far in their own bracket).
+function getMaxCollisionBlocked(picksByRound){
+  const blocked=new Set();
+  // Find the deepest round each code appears in the user's picks
+  const maxDepth={};
+  ["r32","r16","qf","sf"].forEach(r=>{
+    Object.values(picksByRound[r]||{}).forEach(t=>{
+      if(!t?.code) return;
+      if(maxDepth[t.code]===undefined||ROUND_DEPTH[r]>maxDepth[t.code]) maxDepth[t.code]=ROUND_DEPTH[r];
+    });
+  });
+  const codes=Object.keys(maxDepth);
+  for(let i=0;i<codes.length;i++){
+    for(let j=i+1;j<codes.length;j++){
+      const c1=codes[i],c2=codes[j];
+      if(blocked.has(c1)||blocked.has(c2)) continue;
+      // Find the earliest round they collide
+      for(const rnd of ["r32","r16","qf","sf"]){
+        if(inSameBracketGroup(c1,c2,rnd)){
+          // Keep the one that goes further, block the other
+          if(maxDepth[c1]>=maxDepth[c2]) blocked.add(c2);
+          else blocked.add(c1);
+          break;
+        }
+      }
+    }
+  }
+  return blocked;
+}
+
+// For PROJ points: when two picks collide, return the set of codes that should be
+// BLOCKED (the UNDERDOG — the one with worse real-world betting odds).
+function getProjCollisionBlocked(picksByRound,oddsMap){
+  const blocked=new Set();
+  const codes=[...new Set(["r32","r16","qf","sf"].flatMap(r=>Object.values(picksByRound[r]||{}).map(t=>t?.code).filter(Boolean)))];
+  const toProb=odds=>odds<0?Math.abs(odds)/(Math.abs(odds)+100):100/(odds+100);
+  for(let i=0;i<codes.length;i++){
+    for(let j=i+1;j<codes.length;j++){
+      const c1=codes[i],c2=codes[j];
+      if(blocked.has(c1)||blocked.has(c2)) continue;
+      for(const rnd of ["r32","r16","qf","sf"]){
+        if(inSameBracketGroup(c1,c2,rnd)){
+          const p1=toProb(oddsMap[c1]||9999),p2=toProb(oddsMap[c2]||9999);
+          // Block the underdog (lower win probability)
+          if(p1>=p2) blocked.add(c2); else blocked.add(c1);
+          break;
+        }
+      }
+    }
+  }
+  return blocked;
+}
+
+
 const C = {
   bg:"#0a0e1a",card:"#111827",card2:"#0d1321",
   accent:"#06b6d4",accentDim:"rgba(6,182,212,0.18)",
@@ -373,25 +457,32 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   if(!bracket?.knockout_picks) return base;
   let proj=base;
   const ko=bracket.knockout_picks,koR=results?.knockout_results||{};
+  const collisionBlocked=getProjCollisionBlocked(ko,oddsMap);
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{},pred=ko[round]||{};
     const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
     Object.values(pred).forEach(pick=>{
       if(!pick?.code) return;
-      if(actualAdvancers.has(pick.code)) return; // already counted in base score - avoid double counting
-      if(isTeamEliminated(pick.code,results)) return; // confirmed dead - never qualified, or lost a real match
-      if(oddsMap[pick.code]) proj+=scoring[round]; // still alive and has betting odds for an upcoming match
+      if(actualAdvancers.has(pick.code)) return;
+      if(isTeamEliminated(pick.code,results)) return;
+      if(collisionBlocked.has(pick.code)) return;
+      if(oddsMap[pick.code]) proj+=scoring[round];
     });
   });
-  if(!koR.champion&&ko.champion?.code&&!isTeamEliminated(ko.champion.code,results)&&oddsMap[ko.champion.code]) proj+=scoring.champion;
+  const champCode=ko.champion?.code;
+  if(!koR.champion&&champCode&&!isTeamEliminated(champCode,results)&&!collisionBlocked.has(champCode)&&oddsMap[champCode]) proj+=scoring.champion;
   return proj;
 }
 
 function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
-  // Current score + points still earnable if all remaining picks are correct
+  // Current score + points still earnable if all remaining picks are correct,
+  // accounting for the real bracket tree (impossible co-existing picks are resolved
+  // by keeping the one the user has going further in their bracket).
   const current=calculateScore(bracket,results,scoring).total;
   const ko=bracket?.knockout_picks||{};
   const koR=results?.knockout_results||{};
+  // Find which picks are "blocked" due to bracket collisions (user had both teams in same group)
+  const collisionBlocked=getMaxCollisionBlocked(ko);
   let extra=0;
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{};
@@ -400,12 +491,15 @@ function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
     Object.values(pred).forEach(pick=>{
       if(!pick?.code) return;
       if(actualAdvancers.has(pick.code)) return; // already counted in current score
-      if(isTeamEliminated(pick.code,results)) return; // confirmed dead - never qualified, or lost a real match
-      extra+=scoring[round]||0; // genuinely still earnable
+      if(isTeamEliminated(pick.code,results)) return; // confirmed dead
+      if(collisionBlocked.has(pick.code)) return; // impossible pick - blocked by bracket collision
+      extra+=scoring[round]||0;
     });
   });
-  if(!koR.thirdPlace&&ko.thirdPlace?.code&&!isTeamEliminated(ko.thirdPlace.code,results)) extra+=scoring.third||0;
-  if(!koR.champion&&ko.champion?.code&&!isTeamEliminated(ko.champion.code,results)) extra+=scoring.champion||0;
+  const champCode=ko.champion?.code;
+  if(!koR.champion&&champCode&&!isTeamEliminated(champCode,results)&&!collisionBlocked.has(champCode)) extra+=scoring.champion||0;
+  const thirdCode=ko.thirdPlace?.code;
+  if(!koR.thirdPlace&&thirdCode&&!isTeamEliminated(thirdCode,results)&&!collisionBlocked.has(thirdCode)) extra+=scoring.third||0;
   return current+extra;
 }
 
