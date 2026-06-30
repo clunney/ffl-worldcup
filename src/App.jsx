@@ -153,20 +153,21 @@ function getMaxCollisionBlocked(picksByRound){
 }
 
 // For PROJ points: when two picks collide, return the set of codes that should be
-// BLOCKED (the UNDERDOG — the one with worse real-world betting odds).
-function getProjCollisionBlocked(picksByRound,oddsMap){
+// BLOCKED — the lower-ranked team per pre-tournament FIFA rankings (higher number = weaker).
+// Using FIFA rankings (always available, static) instead of live odds avoids any gap
+// where odds haven't been priced yet for upcoming matches.
+function getProjCollisionBlocked(picksByRound){
   const blocked=new Set();
   const codes=[...new Set(["r32","r16","qf","sf"].flatMap(r=>Object.values(picksByRound[r]||{}).map(t=>t?.code).filter(Boolean)))];
-  const toProb=odds=>odds<0?Math.abs(odds)/(Math.abs(odds)+100):100/(odds+100);
   for(let i=0;i<codes.length;i++){
     for(let j=i+1;j<codes.length;j++){
       const c1=codes[i],c2=codes[j];
       if(blocked.has(c1)||blocked.has(c2)) continue;
       for(const rnd of ["r32","r16","qf","sf"]){
         if(inSameBracketGroup(c1,c2,rnd)){
-          const p1=toProb(oddsMap[c1]||9999),p2=toProb(oddsMap[c2]||9999);
-          // Block the underdog (lower win probability)
-          if(p1>=p2) blocked.add(c2); else blocked.add(c1);
+          // Keep the better-ranked team (lower FIFA ranking number wins)
+          const r1=FIFA_RANKINGS[c1]||999,r2=FIFA_RANKINGS[c2]||999;
+          if(r1<=r2) blocked.add(c2); else blocked.add(c1);
           break;
         }
       }
@@ -417,11 +418,10 @@ function knockoutPickStatus(code,round,results){
   const actualRound=results?.knockout_results?.[round]||{};
   const winners=new Set(Object.values(actualRound).map(t=>t?.code).filter(Boolean));
   if(winners.has(code)) return"correct";
-  // Never qualified for the real knockout bracket at all (didn't finish top-2 or make the wildcard cut)?
-  // This applies regardless of round - a team that failed in groups can never win any knockout match.
-  if(results?.groups_finalized&&results?.r32_pool&&!results.r32_pool.includes(code)) return"eliminated";
-  const decided=new Set(results?.decided_teams?.[round]||[]);
-  if(decided.has(code)) return"eliminated";
+  // Use isTeamEliminated — catches group-stage failures, R32 losses (via decided_teams
+  // AND R32_PAIRS safeguard), and any prior-round losses. A team that lost in R32
+  // correctly shows as eliminated even in R16/QF/SF picks.
+  if(isTeamEliminated(code,results)) return"eliminated";
   return"pending";
 }
 
@@ -466,7 +466,7 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   if(!bracket?.knockout_picks) return base;
   let proj=base;
   const ko=bracket.knockout_picks,koR=results?.knockout_results||{};
-  const collisionBlocked=getProjCollisionBlocked(ko,oddsMap);
+  const collisionBlocked=getProjCollisionBlocked(ko);
   ["r32","r16","qf","sf"].forEach(round=>{
     const act=koR[round]||{},pred=ko[round]||{};
     const actualAdvancers=new Set(Object.values(act).map(t=>t?.code).filter(Boolean));
@@ -475,11 +475,11 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
       if(actualAdvancers.has(pick.code)) return;
       if(isTeamEliminated(pick.code,results)) return;
       if(collisionBlocked.has(pick.code)) return;
-      if(oddsMap[pick.code]) proj+=scoring[round];
+      proj+=scoring[round]; // alive and not collision-blocked: project them to win this round
     });
   });
   const champCode=ko.champion?.code;
-  if(!koR.champion&&champCode&&!isTeamEliminated(champCode,results)&&!collisionBlocked.has(champCode)&&oddsMap[champCode]) proj+=scoring.champion;
+  if(!koR.champion&&champCode&&!isTeamEliminated(champCode,results)&&!collisionBlocked.has(champCode)) proj+=scoring.champion;
   return proj;
 }
 
