@@ -317,14 +317,23 @@ function deriveResultsFromMatches(matches){
 
   finished.filter(m=>m.stage&&stageMap[m.stage]).forEach(m=>{
     const round=stageMap[m.stage];
-    const hs=m.score?.fullTime?.home??0,as=m.score?.fullTime?.away??0;
-    const winnerTeam=hs>=as?m.homeTeam:m.awayTeam; // on pens too, score.penalties decides but fullTime=0-0
-    const loserTeam=winnerTeam===m.homeTeam?m.awayTeam:m.homeTeam;
-    // Check penalties
-    let winner=winnerTeam,loser=loserTeam;
-    if(m.score?.penalties?.home!=null){
-      winner=m.score.penalties.home>m.score.penalties.away?m.homeTeam:m.awayTeam;
+    // Use the API's authoritative score.winner field (HOME_TEAM/AWAY_TEAM/DRAW).
+    // Fall back to fullTime goal comparison only if winner field is missing.
+    let winner,loser;
+    if(m.score?.winner==="HOME_TEAM"){
+      winner=m.homeTeam; loser=m.awayTeam;
+    } else if(m.score?.winner==="AWAY_TEAM"){
+      winner=m.awayTeam; loser=m.homeTeam;
+    } else {
+      // Fallback: derive from fullTime score (handles edge cases)
+      const hs=m.score?.fullTime?.home??0,as=m.score?.fullTime?.away??0;
+      winner=hs>=as?m.homeTeam:m.awayTeam;
       loser=winner===m.homeTeam?m.awayTeam:m.homeTeam;
+      // Check penalties override
+      if(m.score?.penalties?.home!=null){
+        winner=m.score.penalties.home>m.score.penalties.away?m.homeTeam:m.awayTeam;
+        loser=winner===m.homeTeam?m.awayTeam:m.homeTeam;
+      }
     }
     const wObj=teamObj(winner);if(!wObj)return;
     const lObj=teamObj(loser);
@@ -505,13 +514,25 @@ function calculateMaxPoints(bracket,results,scoring=DEFAULT_SCORING){
 
 // A team is eliminated if it played a round (appears in decided_teams) but did NOT win that round.
 function isTeamEliminated(code,results){
-  // Never qualified for the real knockout bracket at all (didn't finish top-2 or make the wildcard cut)?
+  // Check 1: Never qualified for the real knockout bracket at all
   if(results?.groups_finalized&&results?.r32_pool&&!results.r32_pool.includes(code)) return true;
+  // Check 2: Played a knockout round and lost (via decided_teams populated by deriveResultsFromMatches)
   const decided=results?.decided_teams||{},koR=results?.knockout_results||{};
   for(const r of ["r32","r16","qf","sf"]){
     if((decided[r]||[]).includes(code)){
       const winners=new Set(Object.values(koR[r]||{}).map(t=>t?.code).filter(Boolean));
-      if(!winners.has(code)) return true; // played this round and lost
+      if(!winners.has(code)) return true;
+    }
+  }
+  // Check 3: R32 safeguard - if this team's direct bracket opponent has already been confirmed
+  // as an R32 winner, this team is definitively eliminated even if decided_teams missed them.
+  // This catches cases where score.winner parsing fails for a specific match.
+  const r32Winners=new Set(Object.values(koR.r32||{}).map(t=>t?.code).filter(Boolean));
+  if(r32Winners.size>0){
+    const pair=R32_PAIRS.find(p=>p.includes(code));
+    if(pair){
+      const opponent=pair.find(c=>c!==code);
+      if(opponent&&r32Winners.has(opponent)) return true; // opponent confirmed R32 winner -> this team lost
     }
   }
   return false;
