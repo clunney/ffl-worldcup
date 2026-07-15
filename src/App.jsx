@@ -1701,7 +1701,7 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
                   const actualThird=results?.knockout_results?.thirdPlace;
                   const isCorrect=actualThird&&actualThird.code===ko.thirdPlace.code;
                   return actualThird
-                    ?<div style={{fontSize:13,color:isCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{isCorrect?"+"+scoring.third+" pts":actualThird.name+" finished 3rd"}</div>
+                    ?<div style={{fontSize:13,color:isCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{isCorrect?"+"+DEFAULT_SCORING.third+" pts":actualThird.name+" finished 3rd"}</div>
                     :<div style={{color:C.muted,fontSize:11,marginTop:6}}>3rd place match pending</div>;
                 })()}
               </Card>
@@ -2639,14 +2639,10 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
                   <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,color:C.accent,letterSpacing:1,marginBottom:8}}>SIMULATED FINAL STANDINGS</div>
                   {whatIfScores.map((b,i)=>{
                     const isMe=b.user_id===userId;
-                    const currentRank=scored.findIndex(s=>s.user_id===b.user_id)+1;
-                    const movement=currentRank-(i+1);
                     return(
                       <div key={b.user_id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+C.border,background:isMe?"rgba(6,182,212,.05)":"transparent"}}>
                         <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:24,flexShrink:0}}>
                           <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{i+1}</span>
-                          {movement>0&&<span style={{color:C.green,fontSize:7}}>{"▲"+movement}</span>}
-                          {movement<0&&<span style={{color:C.red,fontSize:7}}>{"▼"+Math.abs(movement)}</span>}
                         </div>
                         <div style={{flex:1,minWidth:0}}>
                           <div style={{color:isMe?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,fontWeight:isMe?600:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.bracket_name}</div>
