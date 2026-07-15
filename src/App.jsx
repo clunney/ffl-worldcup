@@ -480,6 +480,8 @@ function calculateProjected(bracket,results,oddsMap,scoring=DEFAULT_SCORING){
   });
   const champCode=ko.champion?.code;
   if(!koR.champion&&champCode&&!isTeamEliminated(champCode,results)&&!collisionBlocked.has(champCode)) proj+=scoring.champion;
+  const thirdCode=ko.thirdPlace?.code;
+  if(!koR.thirdPlace&&thirdCode&&!isTeamEliminated(thirdCode,results)) proj+=scoring.third||0;
   return proj;
 }
 
@@ -1687,6 +1689,23 @@ function BracketPage({step,setStep,groupPicks,setGroupPicks,wildcardPicks,setWil
 
         {viewTab==="champion"&&(
           <div style={{padding:12}}>
+            {ko.thirdPlace&&(
+              <Card style={{textAlign:"center",padding:16,marginBottom:12,border:"1px solid "+C.border}}>
+                <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginBottom:8}}>YOUR 3RD PLACE PICK</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                  <Flag code={ko.thirdPlace.code} size={28}/>
+                  <span style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:18}}>{ko.thirdPlace.name}</span>
+                  <FifaRank code={ko.thirdPlace.code}/>
+                </div>
+                {(()=>{
+                  const actualThird=results?.knockout_results?.thirdPlace;
+                  const isCorrect=actualThird&&actualThird.code===ko.thirdPlace.code;
+                  return actualThird
+                    ?<div style={{fontSize:13,color:isCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{isCorrect?"+"+scoring.third+" pts":actualThird.name+" finished 3rd"}</div>
+                    :<div style={{color:C.muted,fontSize:11,marginTop:6}}>3rd place match pending</div>;
+                })()}
+              </Card>
+            )}
             {ko.champion&&(
               <Card accent style={{textAlign:"center",padding:20}}>
                 <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,marginBottom:10}}>YOUR WORLD CUP CHAMPION</div>
@@ -1826,6 +1845,7 @@ function BracketViewer({bracket,results,onClose}){
 
   const ChampionTab=()=>{
     const champ=ko.champion,actual=koR.champion,correct=actual&&champ&&actual.code===champ.code;
+    const third=ko.thirdPlace,actualThird=koR.thirdPlace,thirdCorrect=actualThird&&third&&actualThird.code===third.code;
     const score=calculateScore(bracket,results,scoring);
     return(
       <div>
@@ -1843,6 +1863,17 @@ function BracketViewer({bracket,results,onClose}){
             )}
           </Card>
         ):<div style={{color:C.muted,textAlign:"center",padding:20}}>No champion picked yet</div>}
+        {third?(
+          <Card style={{textAlign:"center",padding:16,marginBottom:12,border:"1px solid "+C.border}}>
+            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:11,marginBottom:8}}>3RD PLACE PICK</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <Flag code={third.code} size={28}/>
+              <span style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:18}}>{third.name}</span>
+              <FifaRank code={third.code}/>
+            </div>
+            {actualThird?<div style={{fontSize:13,color:thirdCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{thirdCorrect?"+"+scoring.third+" pts":actualThird.name+" finished 3rd"}</div>:<div style={{color:C.muted,fontSize:11,marginTop:6}}>3rd place match pending</div>}
+          </Card>
+        ):null}
         <Card style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,textAlign:"center"}}>
           <div><div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:26}}>{score.total}</div><div style={{color:C.muted,fontSize:11}}>current pts</div></div>
           <div><div style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:26}}>---</div><div style={{color:C.muted,fontSize:11}}>projected</div></div>
@@ -2451,7 +2482,7 @@ function MatchesPage({matches,loading}){
 
 // ---- Insights Page ----
 function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
-  const[tab,setTab]=useState("edge"),[ whatIfTeam,setWhatIfTeam]=useState(null);
+  const[tab,setTab]=useState("edge"),[whatIfChamp,setWhatIfChamp]=useState(null),[whatIfThird,setWhatIfThird]=useState(null);
   const myBracket=allBrackets.find(b=>b.user_id===userId);
   const scoring=results?.scoring_config||DEFAULT_SCORING;
   const{champDist,groupConsensus,contrarian}=computeStats(allBrackets);
@@ -2473,11 +2504,24 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
     const isKO=["LAST_32","LAST_16","QUARTER_FINALS","SEMI_FINALS"].includes(m.stage);
     return isToday&&isKO&&["SCHEDULED","TIMED","IN_PLAY","PAUSED"].includes(m.status);
   });
+  // Derive the real finalists and 3rd-place contenders from SF results + decided_teams
+  const sfWinners=useMemo(()=>Object.values(results?.knockout_results?.sf||{}).filter(Boolean),[results]);
+  const sfLosers=useMemo(()=>{
+    const winners=new Set(sfWinners.map(t=>t.code));
+    return (results?.decided_teams?.sf||[]).filter(c=>!winners.has(c)).map(c=>ALL_TEAMS.find(t=>t.code===c)).filter(Boolean);
+  },[results,sfWinners]);
   const whatIfScores=useMemo(()=>{
-    if(!whatIfTeam)return null;
-    const sim={...(results||{}),knockout_results:{...(results?.knockout_results||{}),champion:{code:whatIfTeam.code,name:whatIfTeam.name}}};
-    return allBrackets.map(b=>({...b,score:calculateScore(b,sim,scoring).total,wouldWin:b.knockout_picks?.champion?.code===whatIfTeam.code})).sort((a,b)=>b.score-a.score);
-  },[whatIfTeam,allBrackets,results,scoring]);
+    if(!whatIfChamp&&!whatIfThird) return null;
+    const sim={...(results||{}),knockout_results:{...(results?.knockout_results||{})}};
+    if(whatIfChamp) sim.knockout_results.champion={code:whatIfChamp.code,name:whatIfChamp.name};
+    if(whatIfThird) sim.knockout_results.thirdPlace={code:whatIfThird.code,name:whatIfThird.name};
+    return allBrackets.map(b=>({
+      ...b,
+      score:calculateScore(b,sim,scoring).total,
+      wouldWinChamp:b.knockout_picks?.champion?.code===whatIfChamp?.code,
+      wouldWinThird:b.knockout_picks?.thirdPlace?.code===whatIfThird?.code,
+    })).sort((a,b)=>b.score-a.score);
+  },[whatIfChamp,whatIfThird,allBrackets,results,scoring]);
 
   if(!picksVisible)return(
     <div style={{padding:24,textAlign:"center",paddingBottom:90}}>
@@ -2543,29 +2587,80 @@ function InsightsPage({allBrackets,userId,results,picksVisible,matches}){
       {tab==="whatif"&&(
         <Card accent>
           <GroupNote/>
-          <SecHead label="WHAT-IF SIMULATOR" sub="Pick any team to win - see how the standings would shift"/>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,color:C.muted,fontFamily:"'Barlow',sans-serif",marginBottom:8}}>SELECT A CHAMPION</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {ALL_TEAMS.slice(0,16).map(team=>(
-                <button key={team.code} onClick={()=>setWhatIfTeam(whatIfTeam?.code===team.code?null:team)} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",background:whatIfTeam?.code===team.code?"rgba(6,182,212,.2)":C.card2,border:"1px solid "+(whatIfTeam?.code===team.code?C.accent:C.border),borderRadius:8,cursor:"pointer"}}>
-                  <Flag code={team.code} size={16}/><span style={{color:whatIfTeam?.code===team.code?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:11}}>{team.name}</span>
-                </button>
-              ))}
+          <SecHead label="WHAT-IF SIMULATOR" sub="Simulate the Final and 3rd place match — see exactly where everyone finishes"/>
+          {sfWinners.length<2&&sfLosers.length<2?(
+            <div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:13,padding:"12px 0"}}>
+              Semifinals haven't been played yet. Check back once the Final four is set.
             </div>
-          </div>
-          {whatIfTeam&&whatIfScores&&(
+          ):(
             <div>
-              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,color:C.accent,letterSpacing:1,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
-                <Flag code={whatIfTeam.code} size={18}/>IF {whatIfTeam.name.toUpperCase()} WIN
-              </div>
-              {whatIfScores.map((b,i)=>{const isMe=b.user_id===userId;return(
-                <div key={b.user_id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+C.border,background:isMe?"rgba(6,182,212,.05)":"transparent"}}>
-                  <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14,width:20}}>{i+1}</span>
-                  <div style={{flex:1}}><div style={{color:isMe?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,fontWeight:isMe?600:400}}>{b.bracket_name}</div>{b.wouldWin&&<span style={{color:C.green,fontFamily:"'Barlow',sans-serif",fontSize:10}}>picked them!</span>}</div>
-                  <span style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{b.score}</span>
+              {sfLosers.length>=2&&(
+                <div style={{marginBottom:16}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,color:C.muted,letterSpacing:1,marginBottom:8}}>{"🥉 3RD PLACE MATCH"}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+                    {sfLosers.slice(0,2).map((team)=>{
+                      const sel=whatIfThird?.code===team.code;
+                      return(
+                        <button key={team.code} onClick={()=>setWhatIfThird(sel?null:team)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"12px 8px",background:sel?"rgba(6,182,212,.2)":C.card2,border:"2px solid "+(sel?C.accent:C.border),borderRadius:10,cursor:"pointer"}}>
+                          <Flag code={team.code} size={32}/>
+                          <span style={{color:sel?C.accent:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{team.name}</span>
+                          <FifaRank code={team.code}/>
+                          {sel&&<span style={{color:C.accent,fontSize:10,fontFamily:"'Barlow',sans-serif"}}>+12 pts if correct</span>}
+                        </button>
+                      );
+                    })}
+                    <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:18,textAlign:"center"}}>VS</span>
+                  </div>
+                  {whatIfThird&&<div style={{color:C.green,fontFamily:"'Barlow',sans-serif",fontSize:11,marginTop:6,textAlign:"center"}}>Simulating {whatIfThird.name} finishing 3rd</div>}
                 </div>
-              );})}
+              )}
+              {sfWinners.length>=2&&(
+                <div style={{marginBottom:16}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,color:C.amber,letterSpacing:1,marginBottom:8}}>{"🏆 THE FINAL"}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+                    {sfWinners.slice(0,2).map((team)=>{
+                      const sel=whatIfChamp?.code===team.code;
+                      return(
+                        <button key={team.code} onClick={()=>setWhatIfChamp(sel?null:team)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,padding:"12px 8px",background:sel?"rgba(245,158,11,.15)":C.card2,border:"2px solid "+(sel?"#f59e0b":C.border),borderRadius:10,cursor:"pointer"}}>
+                          <Flag code={team.code} size={32}/>
+                          <span style={{color:sel?"#f59e0b":C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{team.name}</span>
+                          <FifaRank code={team.code}/>
+                          {sel&&<span style={{color:"#f59e0b",fontSize:10,fontFamily:"'Barlow',sans-serif"}}>+20 pts if correct</span>}
+                        </button>
+                      );
+                    })}
+                    <span style={{color:C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:18,textAlign:"center"}}>VS</span>
+                  </div>
+                  {whatIfChamp&&<div style={{color:C.amber,fontFamily:"'Barlow',sans-serif",fontSize:11,marginTop:6,textAlign:"center"}}>Simulating {whatIfChamp.name} as Champion</div>}
+                </div>
+              )}
+              {whatIfScores?(
+                <div style={{marginTop:4}}>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:12,color:C.accent,letterSpacing:1,marginBottom:8}}>SIMULATED FINAL STANDINGS</div>
+                  {whatIfScores.map((b,i)=>{
+                    const isMe=b.user_id===userId;
+                    const currentRank=scored.findIndex(s=>s.user_id===b.user_id)+1;
+                    const movement=currentRank-(i+1);
+                    return(
+                      <div key={b.user_id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid "+C.border,background:isMe?"rgba(6,182,212,.05)":"transparent"}}>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:24,flexShrink:0}}>
+                          <span style={{color:i===0?"#f59e0b":i===1?"#94a3b8":i===2?"#cd7f32":C.muted,fontFamily:"'Bebas Neue',sans-serif",fontSize:14}}>{i+1}</span>
+                          {movement>0&&<span style={{color:C.green,fontSize:7}}>{"▲"+movement}</span>}
+                          {movement<0&&<span style={{color:C.red,fontSize:7}}>{"▼"+Math.abs(movement)}</span>}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{color:isMe?C.accent:C.text,fontFamily:"'Barlow',sans-serif",fontSize:12,fontWeight:isMe?600:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.bracket_name}</div>
+                          <div style={{display:"flex",gap:6,marginTop:2}}>
+                            {b.wouldWinChamp&&<span style={{color:"#f59e0b",fontFamily:"'Barlow',sans-serif",fontSize:9}}>{"🏆 picked champ"}</span>}
+                            {b.wouldWinThird&&<span style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:9}}>{"🥉 picked 3rd"}</span>}
+                          </div>
+                        </div>
+                        <span style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:15}}>{b.score}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ):<div style={{color:C.muted,fontFamily:"'Barlow',sans-serif",fontSize:12,textAlign:"center",padding:"12px 0"}}>Select a winner above to simulate the standings</div>}
             </div>
           )}
         </Card>
