@@ -1855,7 +1855,7 @@ function BracketViewer({bracket,results,onClose}){
             <Flag code={champ.code} size={52}/>
             <div style={{color:C.accent,fontFamily:"'Bebas Neue',sans-serif",fontSize:26,letterSpacing:2,margin:"10px 0 6px"}}>{champ.name}</div>
             <FifaRank code={champ.code}/>
-            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! +"+scoring.champion+" pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
+            {actual?<div style={{fontSize:14,color:correct?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{correct?"Champion! +"+DEFAULT_SCORING.champion+" pts":actual.name+" won"}</div>:<div style={{color:C.muted,fontSize:12,marginTop:6}}>Tournament in progress</div>}
             {bracket.champion_goal_diff_pick!=null&&(
               <div style={{marginTop:10,padding:8,background:C.card2,borderRadius:8}}>
                 <div style={{color:C.muted,fontSize:11,fontFamily:"'Barlow',sans-serif"}}>Tiebreaker: <strong style={{color:C.accent}}>{bracket.champion_goal_diff_pick>0?"+":""}{bracket.champion_goal_diff_pick}</strong> goal diff</div>
@@ -1871,7 +1871,7 @@ function BracketViewer({bracket,results,onClose}){
               <span style={{color:C.text,fontFamily:"'Bebas Neue',sans-serif",fontSize:18}}>{third.name}</span>
               <FifaRank code={third.code}/>
             </div>
-            {actualThird?<div style={{fontSize:13,color:thirdCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{thirdCorrect?"+"+scoring.third+" pts":actualThird.name+" finished 3rd"}</div>:<div style={{color:C.muted,fontSize:11,marginTop:6}}>3rd place match pending</div>}
+            {actualThird?<div style={{fontSize:13,color:thirdCorrect?C.green:C.red,fontFamily:"'Barlow',sans-serif",marginTop:6}}>{thirdCorrect?"+"+DEFAULT_SCORING.third+" pts":actualThird.name+" finished 3rd"}</div>:<div style={{color:C.muted,fontSize:11,marginTop:6}}>3rd place match pending</div>}
           </Card>
         ):null}
         <Card style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,textAlign:"center"}}>
