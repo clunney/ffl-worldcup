@@ -90,7 +90,7 @@ const ROUNDS = [
   {id:"qf",label:"QF",fullLabel:"Quarterfinals",n:4,pts:8},
   {id:"sf",label:"SF",fullLabel:"Semifinals",n:2,pts:10},
 ];
-const STAGE_TO_ROUND = {LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final"};
+const STAGE_TO_ROUND = {LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final",THIRD_PLACE:"thirdPlace","3RD_PLACE_MATCH":"thirdPlace"};
 
 // Official 2026 FIFA World Cup knockout bracket tree.
 // Ordered pairs = direct R32 opponents. Consecutive pair-of-pairs = same R16 slot. Etc.
@@ -314,7 +314,7 @@ function deriveResultsFromMatches(matches){
   // -- Knockout results --
   const knockoutResults={};
   const decidedTeams={r32:[],r16:[],qf:[],sf:[]}; // teams whose match in this round has concluded (winners AND losers)
-  const stageMap={LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final","3RD_PLACE_MATCH":"thirdPlace"};
+  const stageMap={LAST_32:"r32",LAST_16:"r16",QUARTER_FINALS:"qf",SEMI_FINALS:"sf",FINAL:"final",THIRD_PLACE:"thirdPlace","3RD_PLACE_MATCH":"thirdPlace"};
 
   finished.filter(m=>m.stage&&stageMap[m.stage]).forEach(m=>{
     const round=stageMap[m.stage];
